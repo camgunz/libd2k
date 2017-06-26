@@ -48,26 +48,17 @@
 #endif
 
 #include <errno.h>
-#include <stdarg.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
-
-#ifdef HAVE_STDBOOL_H
-#include <stdbool.h>
-#endif
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
 
 #include <glib.h>
+
+#undef malloc
+#undef calloc
+#undef realloc
+#undef free
+#undef strdup
 
 static inline void* d2k_malloc(size_t count, size_t size) {
 	if (count && size && ((SIZE_MAX / count) < size)) {
@@ -108,15 +99,9 @@ static inline char* d2k_strdup(const char *s) {
   return g_strdup(s);
 }
 
-static inline char *d2k_strndup(const char *s, size_t n) {
+static inline char* d2k_strndup(const char *s, size_t n) {
   return g_strndup(s, n);
 }
-
-#undef malloc
-#undef calloc
-#undef realloc
-#undef free
-#undef strdup
 
 #endif
 
