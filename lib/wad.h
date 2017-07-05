@@ -41,9 +41,9 @@ typedef enum {
 } WadSource;
 
 typedef struct WadStruct {
-  WadSource   source;
-  GArray     *lumps;
-  GHashTable *lump_lookup[LUMP_NAMESPACE_MAX + 1];
+  WadSource  source;
+  Array     *lumps;
+  Table     *lump_lookup[LUMP_NAMESPACE_MAX + 1];
 } Wad;
 
 typedef struct LumpStruct {
@@ -54,8 +54,8 @@ typedef struct LumpStruct {
   const char    *data;
 } Lump;
 
-Wad*  WadNew(WadSource source, GPtrArray *resource_file_paths);
-void  WadInit(Wad *wad, WadSource source, GPtrArray *resource_file_paths);
+Wad*  WadNew(WadSource source, PArray *resource_file_paths);
+void  WadInit(Wad *wad, WadSource source, PArray *resource_file_paths);
 void  WadClear(Wad *wad);
 Lump* WadLookupLump(Wad *wad, const char *lump_name);
 Lump* WadLookupLumpNS(Wad *wad, const char *lump_name, LumpNamespace ns);

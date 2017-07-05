@@ -24,11 +24,19 @@
 
 #include "wad.h"
 
-typedef struct {
-  char identification[4]; // Should be "IWAD" or "PWAD".
-  int  numlumps;
-  int  infotableofs;
-} wad_header_t;
+#define invalid_lump_directory_location_in_wad_header(status) status_error( \
+  status,                                                                   \
+  "d2k_wad",                                                                \
+  INVALID_LUMP_DIRECTORY_LOCATION_IN_WAD_HEADER,                            \
+  "invalid lump directory location in WAD header"                           \
+)
+
+#define invalid_wad_source(status) status_error( \
+  status,                                        \
+  "d2k_wad",                                     \
+  INVALID_WAD_SOURCE,                            \
+  "invalid WAD source"                           \
+)
 
 typedef struct wad_lump_entry_s {
   int filepos;
@@ -46,14 +54,16 @@ static inline bool is_marker(const char *marker, const char *name) {
 
 static bool coalesce_marked_lumps(Wad *wad, const char *start_marker_name,
                                             const char *end_marker_name,
-                                            LumpNamespace ns) {
-  size_t marked_count = 0;
-  bool   in_marked = false;
-  Lump   start_marker;
-  Lump   end_marker;
+                                            LumpNamespace ns,
+                                            Status *status) {
+  size_t  marked_count = 0;
+  bool    in_marked = false;
+  Lump   *ns_lump = NULL;
+  Lump   *start_marker = NULL;
+  Lump   *end_marker = NULL;
 
   for (size_t i = 0; i < wad->lumps->len; i++) {
-    Lump *lump = &g_array_index(wad->lumps, Lump, i);
+    Lump *lump = &array_index(wad->lumps, Lump, i);
 
     if (is_marker(start_marker_name, lump->name)) {
       in_marked = true;
@@ -73,30 +83,40 @@ static bool coalesce_marked_lumps(Wad *wad, const char *start_marker_name,
       Lump ns_lump = *lump;
 
       ns_lump.ns = ns;
-      g_array_remove_index(wad->lumps, i);
-      g_array_insert_val(wad->lumps, marked_count, lump);
+
+      if (!array_append(wad->lumps, (void **)&ns_lump, status)) {
+        return false;
+      }
+
+      array_delete_fast(wad->lumps, i);
       marked_count++;
     }
   }
 
   if (!marked_count) {
-    return
+    return;
   }
 
-  strncpy(start_marker.name, start_marker_name, 8);
-  start_marker.ns = LUMP_NAMESPACE_GLOBAL;
-  start_marker.wad = wad;
-  start_marker.size = 0;
-  start_marker.data = NULL;
+  if (!array_prepend(wad->lumps, (void **)&start_marker, status)) {
+    return false;
+  }
 
-  strncpy(end_marker.name, end_marker_name, 8);
-  end_marker.ns = LUMP_NAMESPACE_GLOBAL;
-  end_marker.wad = wad;
-  end_marker.size = 0;
-  end_marker.data = NULL;
+  if (!array_insert(wad->lumps, marked_count + 1, (void **)&end_marker,
+                                                  status)) {
+    return false;
+  }
 
-  g_array_prepend_val(wad->lumps, start_marker);
-  g_array_insert_val(wad->lumps, marked_count + 1, end_marker);
+  strncpy(start_marker->name, start_marker_name, 8);
+  start_marker->ns = LUMP_NAMESPACE_GLOBAL;
+  start_marker->wad = wad;
+  start_marker->size = 0;
+  start_marker->data = NULL;
+
+  strncpy(end_marker->name, end_marker_name, 8);
+  end_marker->ns = LUMP_NAMESPACE_GLOBAL;
+  end_marker->wad = wad;
+  end_marker->size = 0;
+  end_marker->data = NULL;
 }
 
 static void free_lump(gpointer data) {
@@ -112,96 +132,132 @@ static void free_lump(gpointer data) {
   lump->data = NULL;
 }
 
-static bool load_resource(WadSource source, const char *resource_file_path) {
+static bool load_resource(WadSource source, Path *resource_file,
+                                            Status *status) {
   wad_header_t      header;
-  wad_lump_entry_t *lump_p;
-  unsigned          i;
-  int               length;
-  int               startlump;
-  wad_lump_entry_t *fileinfo;
-  wad_lump_entry_t *fileinfo2free = NULL; //killough
-  wad_lump_entry_t  singleinfo;
-  int               flags = 0;
-  int               fh;
+  wad_lump_entry_t *wad_lump;
+  File             *fobj;
+  Lump             *lump;
+  char              identification[4]; // Should be "IWAD" or "PWAD".
+  int               numlumps;
+  int               infotableofs;
+  SSlice            basename;
+  size_t            name_byte_count;
 
-  fh = g_open(resource_file_path, O_RDONLY, S_IRUSR);
-
-  if (fh == -1) {
-    d2k_error("Error opening resource file %s\n", resource_file_path);
+  if (!path_file_open(resource_file, &fobj, "rb", status)) {
     return false;
   }
 
-  startlump = numlumps;
+  previous_lump_count = wad->lumps->len;
 
   switch (source) {
     case WAD_SOURCE_IWAD:
     case WAD_SOURCE_PWAD:
-      if (read(fh, &header, sizeof(header))) {
-        d2k_error("Error reading WAD header from %s\n", resource_file_path);
-        close(fh);
+      if (!file_read_raw(file, (void *)&identification[0],
+                               sizeof(identification),
+                               status)) {
         return false;
       }
-      if (strncmp(header.identification, "IWAD", 4) &&
-          strncmp(header.identification, "PWAD", 4)) {
-        d2k_error("WAD %s doesn't have IWAD or PWAD ID\n", resource_file_path);
-        close(fh);
-        return false;
-      }
-      header.numlumps = GINT_FROM_LE(header.numlumps);
-      header.infotableofs = GINT_FROM_LE(header.infotableofs);
-      lump_directory = d2k_calloc(header.numlumps, sizeof(wad_lump_entry_t));
-      if (lseek(fh, header.infotableofs, SEEK_SET) == -1) {
-        d2k_error("Error seeking to lump directory in WAD %s\n",
-          resource_file_path
-        );
-        close(fh);
-        d2k_free(lump_directory);
-        return false;
-      }
-      if (read(fh, lump_directory,
-                   header.numlumps * sizeof(wad_lump_entry_t))) {
-        d2k_error("Error reading lump directory from WAD %s\n",
-          resource_file_path
-        );
-        close(fh);
-        d2k_free(lump_directory);
-        return false;
-      }
-      lump_count = header.numlumps;
-    case WAD_SOURCE_LUMP:
-      lump_directory = d2k_calloc(1, sizeof(wad_lump_entry_t));
-      lump_directory->filepos = 0;
-      lump_directory->size = lseek(fh, 0, SEEK_END);
-      if (lump_directory->size == -1) {
-        d2k_error("Error seeking to end of lump %s\n", resource_file_path);
-        close(fh);
-        d2k_free(lump_directory);
-        return false;
-      }
-      basename = g_path_get_basename(resource_file_path);
-      for (lump_name_length = 0; i < sizeof(lump_directory->name); i++) {
-        char c = basename[lump_name_length];
 
-        if ((c == '.') || (c == '\0')) {
-          break;
+      if (((identification[0] != 'P') && (identification[0] != 'I')) ||
+                                         (identification[1] != 'W')  ||
+                                         (identification[1] != 'A')  ||
+                                         (identification[1] != 'D')) {
+        file_close(fobj, NULL);
+        return false;
+      }
+
+      if (!file_read_raw(file, (void *)&numlumps, 4, status)) {
+        return false;
+      }
+
+      if (!file_read_raw(file, (void *)&infotableofs, 4, status)) {
+        return false;
+      }
+
+      numlumps = cble32(numlumps);
+      infotableofs = cble32(infotableofs);
+
+      if (!file_seek(fobj, (size_t)infotableofs, SEEK_SET)) {
+        file_close(fobj, NULL);
+        return invalid_lump_directory_location_in_wad_header(status);
+      }
+
+      if (!array_ensure_capacity(wad->lumps, wad->lumps->len + header.numlumps,
+                                             status)) {
+        file_close(fobj, NULL);
+        array_set_size(wad->lumps, previous_lump_count, NULL);
+        return false;
+      }
+
+      for (size_t i = 0; i < header.numlumps; i++) {
+        if (!array_append(wad->lumps, (void **)&lump, status)) {
+          file_close(fobj, NULL);
+          array_set_size(wad->lumps, previous_lump_count, NULL);
+          return false;
+        }
+
+        if (!file_read_raw(file, (void *)lump, sizeof(wad_lump_entry_t), status)) {
+          file_close(fobj, NULL);
+          array_set_size(wad->lumps, previous_lump_count, NULL);
+          return false;
         }
       }
-      memcpy(lump_directory->name, basename, lump_name_length);
-      lump_count = 1;
+
+      break;
+    case WAD_SOURCE_LUMP:
+      if (!array_append(wad->lumps, (void **)&lump, status)) {
+        file_close(fobj, NULL);
+        array_set_size(wad->lumps, previous_lump_count, NULL);
+        return false;
+      }
+
+      if (!file_read_raw(file, (void *)lump, sizeof(lump_entry_t), status)) {
+        file_close(fobj, NULL);
+        array_set_size(wad->lumps, previous_lump_count, NULL);
+        return false;
+      }
+
+      /*
+       * [FIXME]
+       *
+       * The name of the lump here would be dependent on the local filesystem
+       * encoding in Boom (and maybe earlier), but we leave it as UTF-8 here.
+       * In order to reproduce this behavior, we'd have to transcode the
+       * basename (which is in UTF-8) to the local filesystem encoding and then
+       * use the first 8 bytes.  But this code clearly never considered
+       * non-ASCII filesystem encodings, so this case is more or less an error
+       * condition.  If it ends up that something depends on this, it's
+       * relatively simple to reproduce the "bug".
+       */
+
+      if (!path_basename(resource_file_path, &basename, status)) {
+        file_close(fobj, NULL);
+        return false;
+      }
+
+      while (basename.byte_len > sizeof(lump->name)) {
+        if (!sslice_truncate_rune(&basename, status)) {
+          file_close(fobj, NULL);
+          return false;
+        }
+      }
+
+      memcpy(lump->name, basename, basename.byte_len);
     default:
-      d2k_error("Invalid WAD source %d\n", source);
-      g_close(fh);
-      return false;
+      file_close(fobj, NULL);
+      return invalid_wad_source(status);
   }
 
-  previous_lump_count = wad->lumps->len;
-  g_array_set_size(wad->lumps, wad->lumps->len + lump_count);
-
   for (size_t i = 0; i < lump_count; i++) {
-    Lump   *lump = g_array_index(wad->lumps, previous_lump_count - 1 + i);
-    wad_lump_entry_t *wad_lump_entry = lump_directory + i;
+  bool read_lump(Lump *lump, File *fobj, Lump *lump, Status *status) {
+    wad_lump_entry_t *wad_lump_entry;
+    Lump             *lump;
+    
+    wad_lump_entry = lumps + i;
+    lump = array_index_fast(wad->lumps, previous_lump_count - 1 + i);
 
-    strncpy(lump->name, wad_lump_entry->name, sizeof(wad_lump_entry->name));
+    memcpy(lump->name, wad_lump_entry->name, sizeof(wad_lump_entry->name));
 
     if (wad->source == WAD_SOURCE_LUMP) {
       lump->ns = LUMP_NAMESPACE_DEMOS;
@@ -209,31 +265,33 @@ static bool load_resource(WadSource source, const char *resource_file_path) {
     else {
       lump->ns = LUMP_NAMESPACE_GLOBAL;
     }
+
     lump->wad = wad;
-    lump->size = GUINT_FROM_LE(wad_lump_entry->size);
+    lump->size = cble32(wad_lump_entry->size);
 
-    lump->data = d2k_malloc(lump->size);
-    if (lseek(fh, wad_lump_entry->filepos, SEEK_SET)) {
-      d2k_error("Error seeking to %s in resource %s\n",
-        lump->name,
-        resource_file_path
-      );
-      g_close(fh);
-      free(lump_directory);
-      g_array_set_size(wad->lumps, previous_lump_count);
+    if (!d2k_malloc((void **)&lump->data, lump->size, status)) {
+      file_close(fobj, NULL);
+      d2k_free(lumps);
+      array_set_size(wad->lumps, previous_lump_count, NULL);
       return false;
     }
 
-    if (read(fh, lump->data, sizeof(lump->size))) {
-      d2k_error("Error lump data from lump %s in resource %s\n",
-        lump->name,
-        resource_file_path
-      );
-      g_close(fh);
-      free(lump_directory);
-      g_array_set_size(wad->lumps, previous_lump_count);
+    if (!file_seek(fobj, wad_lump_entry->filepos, SEEK_SET)) {
+      file_close(fobj, NULL);
+      d2k_free(lumps);
+      array_set_size(wad->lumps, previous_lump_count, NULL);
       return false;
     }
+
+    if (file_read_raw(fobj, lump->data, lump->size, status)) {
+      file_close(fobj, NULL);
+      d2k_free(lumps);
+      array_set_size(wad->lumps, previous_lump_count, NULL);
+      return false;
+    }
+
+    file_close(fobj, NULL);
+    free(lumps);
 
     // IWAD file used as recource PWAD must not override TEXTURE1 or PNAMES
     if ((source != WAD_SOURCE_IWAD) &&
@@ -244,8 +302,6 @@ static bool load_resource(WadSource source, const char *resource_file_path) {
       strncpy(lump->name, "-IGNORE-", 8);
     }
   }
-
-  free(lump_directory);
 }
 
 Wad* WadNew(WadSource source, GPtrArray *resource_file_paths) {
