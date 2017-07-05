@@ -20,45 +20,73 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef WAD_H__
-#define WAD_H__
+#ifndef D2K_WAD_H__
+#define D2K_WAD_H__
+
+#define NSKEY_SIZE (sizeof(D2KLumpNamespace) + 8)
+
+enum {
+  D2K_WAD_ERROR_INVALID_LUMP_DIRECTORY_LOCATION_IN_WAD_HEADER,
+  D2K_WAD_ERROR_INVALID_WAD_SOURCE,
+};
 
 typedef enum {
-  LUMP_NAMESPACE_GLOBAL,
-  LUMP_NAMESPACE_SPRITES,
-  LUMP_NAMESPACE_FLATS,
-  LUMP_NAMESPACE_COLORMAPS,
-  LUMP_NAMESPACE_PRBOOM,
-  LUMP_NAMESPACE_DEMOS,
-  LUMP_NAMESPACE_HIRES,
-  LUMP_NAMESPACE_MAX
-} LumpNamespace;
+  D2K_LUMP_NAMESPACE_GLOBAL,
+  D2K_LUMP_NAMESPACE_SPRITES,
+  D2K_LUMP_NAMESPACE_FLATS,
+  D2K_LUMP_NAMESPACE_COLORMAPS,
+  D2K_LUMP_NAMESPACE_PRBOOM,
+  D2K_LUMP_NAMESPACE_DEMOS,
+  D2K_LUMP_NAMESPACE_HIRES,
+  D2K_LUMP_NAMESPACE_MAX
+} D2KLumpNamespace;
 
 typedef enum {
   WAD_SOURCE_IWAD,
   WAD_SOURCE_PWAD,
   WAD_SOURCE_LUMP,
-} WadSource;
+} D2KWadSource;
 
-typedef struct WadStruct {
-  WadSource  source;
-  Array     *lumps;
-  Table     *lump_lookup[LUMP_NAMESPACE_MAX + 1];
-} Wad;
+typedef struct D2KWadStruct {
+  D2KWadSource source;
+  Buffer       data;
+  Array        lumps;
+} D2KWad;
 
-typedef struct LumpStruct {
-  char           name[9];
-  LumpNamespace  ns;
-  Wad           *wad;
-  size_t         size;
-  const char    *data;
-} Lump;
+typedef struct D2KLumpStruct {
+  D2KLumpNamespace  ns;
+  D2KWad           *wad;
+  Slice             data;
+  char              name[9];
+  char              nskey[NSKEY_SIZE];
+} D2KLump;
 
-Wad*  WadNew(WadSource source, PArray *resource_file_paths);
-void  WadInit(Wad *wad, WadSource source, PArray *resource_file_paths);
-void  WadClear(Wad *wad);
-Lump* WadLookupLump(Wad *wad, const char *lump_name);
-Lump* WadLookupLumpNS(Wad *wad, const char *lump_name, LumpNamespace ns);
+typedef struct D2KLumpDirectoryStruct {
+  PArray *lumps;
+  Table   lookups[2];
+} D2KLumpDirectory;
+
+bool d2k_wad_init_from_path(D2KWad *wad, D2KWadSource source, Path *path,
+                                                              Status *status);
+bool d2k_wad_init_from_data(D2KWad *wad, D2KWadSource source, Buffer *buffer,
+                                                              Status *status);
+bool d2k_wad_init_from_lump_file_data(D2KWad *wad, SSlice *lump_name,
+                                                   Buffer *lump_data,
+                                                   Status *status);
+bool d2k_wad_init_from_lump_file(D2KWad *wad, Path *lump_file_path,
+                                              Status *status);
+
+bool d2k_lump_directory_init(D2KLumpDirectory *lump_directory, PArray *wads,
+                                                               Status *status);
+void d2k_lump_directory_free(D2KLumpDirectory *lump_directory, Status *status);
+bool d2k_lump_directory_lookup(D2KLumpDirectory *lump_directory,
+                               const char *lump_name,
+                               Lump **lump,
+                               Status *status);
+bool d2k_lump_directory_lookup_ns(D2KLumpDirectory *lump_directory,
+                                  const char *lump_name,
+                                  D2KLumpNamespace ns,
+                                  Status *status);
 
 #endif
 

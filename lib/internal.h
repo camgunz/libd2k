@@ -41,68 +41,8 @@
 
 #define __STDC_FORMAT_MACROS
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define UNICODE
-#define _UNICODE
-#endif
+#include <cbase.h>
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <glib.h>
-
-#undef malloc
-#undef calloc
-#undef realloc
-#undef free
-#undef strdup
-
-static inline void* d2k_malloc(size_t count, size_t size) {
-	if (count && size && ((SIZE_MAX / count) < size)) {
-		errno = ENOMEM;
-    return (NULL);
-  }
-
-  return g_malloc(count * size);
-}
-
-static inline void* d2k_calloc(size_t count, size_t size) {
-	if (count && size && ((SIZE_MAX / count) < size)) {
-		errno = ENOMEM;
-    return (NULL);
-  }
-
-  return g_malloc0(count * size);
-}
-
-static inline void* d2k_realloc(void *ptr, size_t count, size_t size) {
-	if (count && size && ((SIZE_MAX / count) < size)) {
-		errno = ENOMEM;
-    return (NULL);
-  }
-
-  return g_realloc0(ptr, count * size);
-}
-
-static inline void d2k_free(void *ptr) {
-  g_free(ptr);
-}
-
-static inline void* d2k_memdup(const void *ptr, size_t count) {
-  return g_memdup(ptr, count);
-}
-
-static inline char* d2k_strdup(const char *s) {
-  return g_strdup(s);
-}
-
-static inline char* d2k_strndup(const char *s, size_t n) {
-  return g_strndup(s, n);
-}
-
-#endif
+#include "alloc.h"
 
 /* vi: set et ts=2 sw=2: */
