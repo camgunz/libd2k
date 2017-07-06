@@ -20,22 +20,51 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#include "internal.h"
+#include <limits.h>
 
-#include "wad.h"
+#include "d2k/internal.h"
+#include "d2k/wad.h"
 
-#define invalid_lump_directory_location_in_wad_header(status) status_error( \
-  status,                                                                   \
-  "d2k_wad",                                                                \
-  D2K_WAD_ERROR_INVALID_LUMP_DIRECTORY_LOCATION_IN_WAD_HEADER,              \
-  "invalid lump directory location in WAD header"                           \
+#define too_small(status) status_error( \
+  status,                               \
+  "d2k_wad",                            \
+  D2K_WAD_TOO_SMALL,                    \
+  "WAD is too small"                    \
 )
 
-#define invalid_wad_source(status) status_error( \
+#define invalid_identification(status) status_error(            \
+  status,                                                       \
+  "d2k_wad",                                                    \
+  D2K_WAD_INVALID_IDENTIFICATION,                               \
+  "invalid WAD identification (must be either 'IWAD' or 'PWAD'" \
+)
+
+#define wad_empty(status) status_error( \
+  status,                               \
+  "d2k_wad",                            \
+  D2K_WAD_EMPTY,                        \
+  "WAD is empty"                        \
+)
+
+#define invalid_lump_count(status) status_error( \
   status,                                        \
   "d2k_wad",                                     \
-  D2K_WAD_ERROR_INVALID_WAD_SOURCE,              \
-  "invalid WAD source"                           \
+  D2K_WAD_INVALID_LUMP_COUNT,                    \
+  "invalid lump count in WAD"                    \
+)
+
+#define invalid_info_table_offset(status) status_error( \
+  status,                                               \
+  "d2k_wad",                                            \
+  D2K_WAD_INVALID_INFO_TABLE_OFFSET_IN_WAD,             \
+  "invalid info table offset in WAD"                    \
+)
+
+#define lump_too_large(status) status_error(             \
+  status,                                                \
+  "d2k_wad",                                             \
+  D2K_WAD_LUMP_TOO_LARGE,                                \
+  "lump size exceeds maximum size (2,147,483,647 bytes)" \
 )
 
 static size_t get_lump_hash(const void *key, size_t seed) {
@@ -43,11 +72,11 @@ static size_t get_lump_hash(const void *key, size_t seed) {
 }
 
 static void* get_lump_key_from_name(const void *obj) {
-  return (void *)((Lump *)obj)->name
+  return (void *)((D2KLump *)obj)->name;
 }
 
 static void* get_lump_key_from_name_and_ns(const void *obj) {
-  return (void *)&((Lump *)obj)->nskey[0];
+  return (void *)&((D2KLump *)obj)->nskey[0];
 }
 
 static bool lump_names_equal(const void *key1, const void *key2) {
@@ -69,16 +98,15 @@ static inline bool is_marker(const char *marker, const char *name) {
 static bool coalesce_and_mark_lumps(D2KLumpDirectory *lump_directory,
                                     const char *start_marker_name,
                                     const char *end_marker_name,
-                                    LumpNamespace ns,
+                                    D2KLumpNamespace ns,
                                     Status *status) {
   size_t   marked_count = 0;
   bool     in_marked = false;
-  D2kLump *ns_lump = NULL;
-  D2kLump *start_marker = NULL;
-  D2kLump *end_marker = NULL;
+  D2KLump *start_marker = NULL;
+  D2KLump *end_marker = NULL;
 
-  for (size_t i = 0; i < lump_directory->lumps->len; i++) {
-    D2KLump *lump = &array_index_fast(lump_directory->lumps, i);
+  for (size_t i = 0; i < lump_directory->lumps.len; i++) {
+    D2KLump *lump = parray_index_fast(&lump_directory->lumps, i);
 
     if (is_marker(start_marker_name, lump->name)) {
       in_marked = true;
@@ -91,7 +119,7 @@ static bool coalesce_and_mark_lumps(D2KLumpDirectory *lump_directory,
       // ignore sprite lumps smaller than 8 bytes (the smallest possible)
       // in size -- this was used by some dmadds wads
       // as an 'empty' graphics resource
-      if (ns == LUMP_NAMESPACE_SPRITES && lump->size <= 8) {
+      if (ns == D2K_LUMP_NAMESPACE_SPRITES && lump->data.len <= 8) {
         continue;
       }
 
@@ -99,40 +127,43 @@ static bool coalesce_and_mark_lumps(D2KLumpDirectory *lump_directory,
 
       ns_lump.ns = ns;
 
-      if (!array_append(lump_directory->lumps, (void **)&ns_lump, status)) {
+      if (!parray_append(&lump_directory->lumps, (void **)&ns_lump, status)) {
         return false;
       }
 
-      array_delete_fast(lump_directory->lumps, i);
+      parray_delete_fast(&lump_directory->lumps, i);
       marked_count++;
     }
   }
 
   if (!marked_count) {
-    return;
+    return status_ok(status);
   }
 
-  if (!array_prepend(lump_directory->lumps, (void **)&start_marker, status)) {
+  if (!parray_prepend(&lump_directory->lumps, (void **)&start_marker,
+                                              status)) {
     return false;
   }
 
-  if (!array_insert(lump_directory->lumps, marked_count + 1,
-                                           (void **)&end_marker,
-                                           status)) {
+  if (!parray_insert(&lump_directory->lumps, marked_count + 1,
+                                             (void **)&end_marker,
+                                             status)) {
     return false;
   }
 
   strncpy(start_marker->name, start_marker_name, 8);
-  start_marker->ns = LUMP_NAMESPACE_GLOBAL;
+  start_marker->ns = D2K_LUMP_NAMESPACE_GLOBAL;
   start_marker->wad = NULL;
-  start_marker->size = 0;
-  start_marker->data = NULL;
+  start_marker->data.data = NULL;
+  start_marker->data.len = 0;
 
   strncpy(end_marker->name, end_marker_name, 8);
-  end_marker->ns = LUMP_NAMESPACE_GLOBAL;
+  end_marker->ns = D2K_LUMP_NAMESPACE_GLOBAL;
   end_marker->wad = NULL;
-  end_marker->size = 0;
-  end_marker->data = NULL;
+  end_marker->data.data = NULL;
+  end_marker->data.len = 0;
+
+  return status_ok(status);
 }
 
 static bool load_wad_lumps(D2KWad *wad, Status *status) {
@@ -143,7 +174,7 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
   size_t  info_table_offset;
 
   if (wad->data.len < ((sizeof(char) * 4) + (sizeof(int32_t) * 2))) {
-    return wad_too_small(status);
+    return too_small(status);
   }
 
   cbmemmove(&identification[0], wad->data.data, 4);
@@ -152,26 +183,30 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
                                      (identification[1] != 'W')  ||
                                      (identification[2] != 'A')  ||
                                      (identification[3] != 'D')) {
-    return invalid_wad_identification(status);
+    return invalid_identification(status);
   }
 
   cbmemmove((void *)&numlumps, wad->data.data + 4, 4);
-  lump_count = (size_t)cble32(numlumps);
+  numlumps = cble32(numlumps);
 
-  if (lump_count == 0) {
-    return empty_wad(status);
+  if (numlumps == 0) {
+    return wad_empty(status);
   }
 
-  if (lump_count < 0) {
-    return invalid_lump_count_in_wad(status);
+  if (numlumps < 0) {
+    return invalid_lump_count(status);
   }
+
+  lump_count = (size_t)numlumps;
 
   cbmemmove((void *)&infotableofs, wad->data.data + 8, 4);
-  info_table_offset = (size_t)cble32(infotableofs);
+  infotableofs = cble32(infotableofs);
 
-  if (info_table_offset < 28) {
-    return invalid_info_table_offset_in_wad(status);
+  if (infotableofs < 28) {
+    return invalid_info_table_offset(status);
   }
+
+  info_table_offset = (size_t)infotableofs;
 
   if (!array_init_alloc_zero(&wad->lumps, sizeof(D2KLump), lump_count,
                                                            status)) {
@@ -182,16 +217,18 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
     int32_t  filepos;
     int32_t  size;
     size_t   entry_start = info_table_offset + (i * 12);
-    Lump    *lump = NULL;
+    size_t   lump_data_start;
+    size_t   lump_data_len;
+    D2KLump *lump = NULL;
 
     if (!array_append(&wad->lumps, (void **)&lump, status)) {
       return false;
     }
 
-    cbmemmove((void *)&filepos, wad->data.data[entry_start], 4);
+    cbmemmove((void *)&filepos, wad->data.data + entry_start, 4);
     lump_data_start = (size_t)cble32(filepos);
 
-    cbmemmove((void *)&size, wad->data.data[entry_start + 4], 4);
+    cbmemmove((void *)&size, wad->data.data + entry_start + 4, 4);
     lump_data_len = (size_t)cble32(size);
 
     if (!buffer_slice(&wad->data, lump_data_start, lump_data_len, &lump->data,
@@ -201,27 +238,25 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
 
     lump->ns = D2K_LUMP_NAMESPACE_GLOBAL;
     lump->wad = wad;
-    strncpy(lump->name, wad->data.data[entry_start + 8], 8);
+    strncpy(lump->name, wad->data.data + entry_start + 8, 8);
     lump->name[8] = '\0';
 
     // IWAD file used as resource PWAD must not override TEXTURE1 or PNAMES
     if ((wad->source != WAD_SOURCE_IWAD) &&
         ((wad->source == WAD_SOURCE_LUMP) ||
          (!memcmp(wad->data.data, "IWAD", 4))) &&
-        ((!strnicmp(wad_lump_entry->name, "TEXTURE1", 8)) ||
-         (!strnicmp(wad_lump_entry->name, "PNAMES", 6)))) {
+        ((!strnicmp(lump->name, "TEXTURE1", 8)) ||
+         (!strnicmp(lump->name, "PNAMES", 6)))) {
       strncpy(lump->name, "-IGNORE-", 8);
     }
   }
 
-  return true;
+  return status_ok(status);
 }
 
 bool d2k_wad_init_from_path(D2KWad *wad, D2KWadSource source, Path *path,
                                                               Status *status) {
-  if (!buffer_init(&wad->data, status)) {
-    return false;
-  }
+  buffer_init(&wad->data);
 
   if (!path_file_read(path, &wad->data, status)) {
     return false;
@@ -252,21 +287,21 @@ bool d2k_wad_init_from_lump_file_data(D2KWad *wad, SSlice *lump_name,
   int32_t info_table_offset = lump_data->len + 12;
   int32_t file_position = 12;
 
-  if (lump_data->len > ((1 << 31) - 1)) {
+  if (lump_data->len > INT_MAX) {
     return lump_too_large(status);
   }
 
-  if (!buffer_init_alloc(&wad->buffer, lump_data->len + 28, status)) {
+  if (!buffer_init_alloc(&wad->data, lump_data->len + 28, status)) {
     return false;
   }
 
-  buffer_append_bytes_fast(&wad->data, "PWAD", 4);
-  buffer_append_bytes_fast(&wad->data, (void *)lump_count, 4);
-  buffer_append_bytes_fast(&wad->data, (void *)info_table_offset, 4);
-  buffer_append_bytes_fast(&wad->data, lump_data->data, lump_data->len);
-  buffer_append_bytes_fast(&wad->data, (void *)&file_position, 4);
-  buffer_append_bytes_fast(&wad->data, (void *)&lump_data->len, 4);
-  buffer_append_bytes_fast(&wad->data, (void *)lump_name->data, 8);
+  buffer_append_fast(&wad->data, "PWAD", 4);
+  buffer_append_fast(&wad->data, (void *)&lump_count, 4);
+  buffer_append_fast(&wad->data, (void *)&info_table_offset, 4);
+  buffer_append_fast(&wad->data, lump_data->data, lump_data->len);
+  buffer_append_fast(&wad->data, (void *)&file_position, 4);
+  buffer_append_fast(&wad->data, (void *)&lump_data->len, 4);
+  buffer_append_fast(&wad->data, (void *)lump_name->data, 8);
 
   return load_wad_lumps(wad, status);
 }
@@ -275,10 +310,6 @@ bool d2k_wad_init_from_lump_file(D2KWad *wad, Path *lump_file_path,
                                               Status *status) {
   SSlice lump_name;
   Buffer lump_data;
-
-  if (!buffer_init(&buffer, status)) {
-    return false;
-  }
 
   /*
    * [FIXME]
@@ -293,7 +324,7 @@ bool d2k_wad_init_from_lump_file(D2KWad *wad, Path *lump_file_path,
    * reproduce the "bug".
    */
 
-  if (!path_basename(resource_file_path, &lump_name, status)) {
+  if (!path_basename(lump_file_path, &lump_name, status)) {
     return false;
   }
 
@@ -303,45 +334,27 @@ bool d2k_wad_init_from_lump_file(D2KWad *wad, Path *lump_file_path,
     }
   }
 
-  if (!buffer_init(&lump_data, status)) {
-    return false;
-  }
+  buffer_init(&lump_data);
 
-  if (!path_read_file(lump_file_path, &lump_data, status)) {
+  if (!path_file_read(lump_file_path, &lump_data, status)) {
     buffer_free(&lump_data);
     return false;
   }
 
-  if (!init_wad_from_lump_file_data(wad, &lump_name, &lump_data, status)) {
+  if (!d2k_wad_init_from_lump_file_data(wad, &lump_name, &lump_data, status)) {
     buffer_free(&lump_data);
     return false;
   }
 
   buffer_free(&lump_data);
-  return true;
+
+  return status_ok(status);
 }
 
 bool d2k_lump_directory_init(D2KLumpDirectory *lump_directory,
                              PArray *wads,
                              Status *status) {
   size_t lump_count = 0;
-
-  if (!table_init(&lump_directory->lump_lookup[0], get_lump_hash,
-                                                   get_lump_key_from_name,
-                                                   lump_names_equal,
-                                                   0,
-                                                   status)) {
-    return false;
-  }
-
-  if (!table_init(&lump_directory->lump_lookup[0],
-                  get_lump_hash,
-                  get_lump_key_from_name_and_ns,
-                  lump_names_and_ns_equal,
-                  0,
-                  status)) {
-    return false;
-  }
 
   for (size_t i = 0; i < wads->len; i++) {
     D2KWad *wad = parray_index_fast(wads, i);
@@ -357,68 +370,101 @@ bool d2k_lump_directory_init(D2KLumpDirectory *lump_directory,
     D2KWad *wad = parray_index_fast(wads, i);
 
     for (size_t j = 0; j < wad->lumps.len; i++) {
-      D2KLump *lump = array_index_fast(wad->lumps, i);
+      D2KLump *lump = array_index_fast(&wad->lumps, i);
 
       if (!parray_append(&lump_directory->lumps, (void *)lump, status)) {
+        parray_free(&lump_directory->lumps);
         return false;
       }
     }
   }
 
-  coalesce_and_mark_lumps(
-    lump_directory,
-    "S_START",
-    "S_END",
-    LUMP_NAMESPACE_SPRITES
-  );
+  if (!coalesce_and_mark_lumps(lump_directory, "S_START",
+                                               "S_END",
+                                               D2K_LUMP_NAMESPACE_SPRITES,
+                                               status)) {
+    parray_free(&lump_directory->lumps);
+    return false;
+  }
 
-  coalesce_and_mark_lumps(
-    lump_directory,
-    "F_START",
-    "F_END",
-    LUMP_NAMESPACE_FLATS
-  );
+  if (!coalesce_and_mark_lumps(lump_directory, "F_START",
+                                               "F_END",
+                                               D2K_LUMP_NAMESPACE_FLATS,
+                                               status)) {
+    parray_free(&lump_directory->lumps);
+    return false;
+  }
 
-  coalesce_and_mark_lumps(
-    lump_directory,
-    "C_START",
-    "C_END",
-    LUMP_NAMESPACE_COLORMAPS
-  );
+  if (!coalesce_and_mark_lumps(lump_directory, "C_START",
+                                               "C_END",
+                                               D2K_LUMP_NAMESPACE_COLORMAPS,
+                                               status)) {
+    parray_free(&lump_directory->lumps);
+    return false;
+  }
 
-  coalesce_and_mark_lumps(
-    lump_directory,
-    "B_START",
-    "B_END",
-    LUMP_NAMESPACE_PRBOOM
-  );
+  if (!coalesce_and_mark_lumps(lump_directory, "B_START",
+                                               "B_END",
+                                               D2K_LUMP_NAMESPACE_PRBOOM,
+                                               status)) {
+    parray_free(&lump_directory->lumps);
+    return false;
+  }
 
-  
-  coalesce_and_mark_lumps(
-    lump_directory,
-    "HI_START",
-    "HI_END",
-    LUMP_NAMESPACE_HIRES
-  );
+  if (!coalesce_and_mark_lumps(lump_directory, "HI_START",
+                                               "HI_END",
+                                               D2K_LUMP_NAMESPACE_HIRES,
+                                               status)) {
+    parray_free(&lump_directory->lumps);
+    return false;
+  }
 
-  for (size_t i = 0; i < wad->lumps->len; i++) {
-    Lump *lump = array_index_fast(lump_directory->lumps.len, i);
+  if (!table_init(&lump_directory->lookups[0], get_lump_hash,
+                                               get_lump_key_from_name,
+                                               lump_names_equal,
+                                               0,
+                                               status)) {
+    parray_free(&lump_directory->lumps);
+    return false;
+  }
+
+  if (!table_init(&lump_directory->lookups[0],
+                  get_lump_hash,
+                  get_lump_key_from_name_and_ns,
+                  lump_names_and_ns_equal,
+                  0,
+                  status)) {
+    parray_free(&lump_directory->lumps);
+    table_free(&lump_directory->lookups[0]);
+    return false;
+  }
+
+  for (size_t i = 0; i < lump_directory->lumps.len; i++) {
+    D2KLump *lump = parray_index_fast(&lump_directory->lumps, i);
 
     if (!table_insert(&lump_directory->lookups[0], (void *)lump, status)) {
+      parray_free(&lump_directory->lumps);
+      table_free(&lump_directory->lookups[0]);
+      table_free(&lump_directory->lookups[1]);
       return false;
     }
 
-    if (lump->ns != LUMP_NAMESPACE_GLOBAL) {
+    if (lump->ns != D2K_LUMP_NAMESPACE_GLOBAL) {
       if (!table_insert(&lump_directory->lookups[1], (void *)lump, status)) {
+        parray_free(&lump_directory->lumps);
+        table_free(&lump_directory->lookups[0]);
+        table_free(&lump_directory->lookups[1]);
         return false;
       }
     }
   }
+
+  return status_ok(status);
 }
 
 bool d2k_lump_directory_lookup(D2KLumpDirectory *lump_directory,
                                const char *lump_name,
-                               Lump **lump,
+                               D2KLump **lump,
                                Status *status) {
   return table_lookup(&lump_directory->lookups[0], (void *)lump_name,
                                                    (void **)lump,
@@ -428,8 +474,9 @@ bool d2k_lump_directory_lookup(D2KLumpDirectory *lump_directory,
 bool d2k_lump_directory_lookup_ns(D2KLumpDirectory *lump_directory,
                                   const char *lump_name,
                                   D2KLumpNamespace ns,
+                                  D2KLump **lump,
                                   Status *status) {
-  const char nskey[NSKEY_SIZE];
+  char nskey[sizeof(D2KLumpNamespace) + 8];
 
   memcpy(&nskey[0], (void *)&ns, sizeof(D2KLumpNamespace));
   memcpy(&nskey[sizeof(D2KLumpNamespace)], lump_name, 8);

@@ -23,11 +23,13 @@
 #ifndef D2K_WAD_H__
 #define D2K_WAD_H__
 
-#define NSKEY_SIZE (sizeof(D2KLumpNamespace) + 8)
-
 enum {
-  D2K_WAD_ERROR_INVALID_LUMP_DIRECTORY_LOCATION_IN_WAD_HEADER,
-  D2K_WAD_ERROR_INVALID_WAD_SOURCE,
+  D2K_WAD_TOO_SMALL,
+  D2K_WAD_INVALID_IDENTIFICATION,
+  D2K_WAD_EMPTY,
+  D2K_WAD_INVALID_LUMP_COUNT,
+  D2K_WAD_INVALID_INFO_TABLE_OFFSET_IN_WAD,
+  D2K_WAD_LUMP_TOO_LARGE,
 };
 
 typedef enum {
@@ -58,12 +60,12 @@ typedef struct D2KLumpStruct {
   D2KWad           *wad;
   Slice             data;
   char              name[9];
-  char              nskey[NSKEY_SIZE];
+  char              nskey[sizeof(D2KLumpNamespace) + 8];
 } D2KLump;
 
 typedef struct D2KLumpDirectoryStruct {
-  PArray *lumps;
-  Table   lookups[2];
+  PArray lumps;
+  Table  lookups[2];
 } D2KLumpDirectory;
 
 bool d2k_wad_init_from_path(D2KWad *wad, D2KWadSource source, Path *path,
@@ -81,11 +83,12 @@ bool d2k_lump_directory_init(D2KLumpDirectory *lump_directory, PArray *wads,
 void d2k_lump_directory_free(D2KLumpDirectory *lump_directory, Status *status);
 bool d2k_lump_directory_lookup(D2KLumpDirectory *lump_directory,
                                const char *lump_name,
-                               Lump **lump,
+                               D2KLump **lump,
                                Status *status);
 bool d2k_lump_directory_lookup_ns(D2KLumpDirectory *lump_directory,
                                   const char *lump_name,
                                   D2KLumpNamespace ns,
+                                  D2KLump **lump,
                                   Status *status);
 
 #endif

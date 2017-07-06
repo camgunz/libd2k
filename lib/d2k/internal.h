@@ -45,4 +45,6 @@
 
 #include "alloc.h"
 
+#endif
+
 /* vi: set et ts=2 sw=2: */
