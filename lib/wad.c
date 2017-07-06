@@ -480,8 +480,8 @@ bool d2k_lump_directory_lookup_ns(D2KLumpDirectory *lump_directory,
                                   Status *status) {
   char nskey[sizeof(D2KLumpNamespace) + 8];
 
-  memcpy(&nskey[0], (void *)&ns, sizeof(D2KLumpNamespace));
-  memcpy(&nskey[sizeof(D2KLumpNamespace)], lump_name, 8);
+  cbmemmove(&nskey[0], (void *)&ns, sizeof(D2KLumpNamespace));
+  cbmemmove(&nskey[sizeof(D2KLumpNamespace)], lump_name, 8);
 
   return table_lookup(&lump_directory->lookups[1], (void *)&nskey[0],
                                                    (void **)lump,

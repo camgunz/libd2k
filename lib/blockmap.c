@@ -1,0 +1,568 @@
+/*****************************************************************************/
+/* D2K: A Doom Source Port for the 21st Century                              */
+/*                                                                           */
+/* Copyright (C) 2014: See COPYRIGHT file                                    */
+/*                                                                           */
+/* This file is part of D2K.                                                 */
+/*                                                                           */
+/* D2K is free software: you can redistribute it and/or modify it under the  */
+/* terms of the GNU General Public License as published by the Free Software */
+/* Foundation, either version 2 of the License, or (at your option) any      */
+/* later version.                                                            */
+/*                                                                           */
+/* D2K is distributed in the hope that it will be useful, but WITHOUT ANY    */
+/* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS */
+/* FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more    */
+/* details.                                                                  */
+/*                                                                           */
+/* You should have received a copy of the GNU General Public License along   */
+/* with D2K.  If not, see <http://www.gnu.org/licenses/>.                    */
+/*                                                                           */
+/*****************************************************************************/
+
+#include "d2k/internal.h"
+#include "d2k/wad.h"
+#include "d2k/map.h"
+
+/* places to shift rel position for cell num */
+#define BLKSHIFT 7
+
+/* mask for rel position within cell */
+#define BLKMASK ((1 << BLKSHIFT) - 1)
+
+#define truncated_blockmap_header(status) status_error( \
+  status,                                               \
+  "d2k_blockmap",                                       \
+  D2K_BLOCKMAP_TRUNCATED_HEADER,                        \
+  "truncated blockmap lump header"                      \
+)
+
+#define truncated_blockmap_line_list_directory(status) status_error( \
+  status,                                                            \
+  "d2k_blockmap",                                                    \
+  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,                        \
+  "truncated blockmap line list directory"                           \
+)
+
+#define invalid_offset_in_blockmap_directory(status) status_error( \
+  status,                                                          \
+  "d2k_blockmap",                                                  \
+  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,              \
+  "invalid offset in line list directory"                          \
+)
+
+static inline bool add_block_line(D2KBlockmap *bmap, Array *done,
+                                                     size_t block_index,
+                                                     size_t line_index,
+                                                     Status *status) {
+  bool *skip = array_index_fast(done, block_index);
+
+  if (!(*skip)) {
+    size_t *block_line_index;
+
+    if (!array_append(&bmap->blocks, (void **)block_line_index, status)) {
+      return false;
+    }
+
+    *block_line_index = line_index;
+  }
+
+  return status_ok(status);
+}
+
+bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
+  int xorg;
+  int yorg;
+  int map_minx = INT_MAX;
+  int map_miny = INT_MAX;
+  int map_maxx = INT_MIN;
+  int map_maxy = INT_MIN;
+  Array done;
+
+  for (size_t i = 0; i < map->vertexes.len; i++) {
+    vertex_t *v = array_index_fast(&map->vertexes, i);
+
+    if (v->x < map_minx) {
+      map_minx = v->x;
+    }
+    else if (v->x > map_maxx) {
+      map_maxx = v->x;
+    }
+
+    if (v->y < map_miny) {
+      map_miny = t;
+    }
+    else if (v->y > map_maxy) {
+      map_maxy = v->y;
+    }
+  }
+
+  bmap->origin_x = map_minx;
+  bmap->origin_y = map_miny;
+
+  map_minx >>= FRACBITS;
+  map_maxx >>= FRACBITS;
+  map_miny >>= FRACBITS;
+  map_maxy >>= FRACBITS;
+
+  xorg = map_minx;
+  yorg = map_miny;
+
+  bmap->width  = (map_maxx - xorg + 1 + BLKMASK) >> BLKSHIFT;
+  bmap->height = (map_maxy - yorg + 1 + BLKMASK) >> BLKSHIFT;
+
+  /* [CG] No need to check for overflow here because of the right shift */
+
+  if (!array_init(&bmap->blocks, sizeof(Array), status)) {
+    return false;
+  }
+
+  if (!array_set_size(&bmap->blocks, bmap->width * bmap->height, status)) {
+    array_free(&bmap->blocks);
+    return false;
+  }
+
+  if (!array_init(&done, sizeof(bool), status)) {
+    array_free(&bmap->blocks);
+    return false;
+  }
+
+  if (!array_set_size(&done, bmap->blocks.len, status)) {
+    array_free(&bmap->blocks);
+    array_free(&done);
+    return false;
+  }
+
+  for (size_t i = 0; i < bmap->blocks.len; i++) {
+    Array *line_list = array_index_fast(&bmap->blocks, i);
+
+    if (!array_init(line_list, sizeof(size_t), status)) {
+      for (size_t j = i; j > 0; j--) {
+        array_free(array_index_fast(&bmap->blocks, j - 1));
+      }
+
+      array_free(&bmap->blocks);
+      array_free(&done);
+      return false;
+    }
+  }
+
+  // For each linedef in the wad, determine all blockmap blocks it touches,
+  // and add the linedef number to the blocklists for those blocks
+  for (size_t i = 0; i < map->lines.count; i++) {
+    line_t *line = array_index_fast(&map->lines, i);
+    int x1 = line->v1->x >> FRACBITS;
+    int y1 = line->v1->y >> FRACBITS;
+    int x2 = line->v2->x >> FRACBITS;
+    int y2 = line->v2->y >> FRACBITS;
+    int dx = x2 - x1;
+    int dy = y2 - y1;
+    bool vert = dx == 0;
+    bool horiz = dy == 0;
+    bool spos = (dx ^ dy) > 0;
+    bool sneg = (dx ^ dy) < 0;
+    int bx;
+    int by;
+    int minx = x1 > x2 ? x2 : x1;
+    int maxx = x1 > x2 ? x1 : x2;
+    int miny = y1 > y2 ? y2 : y1;
+    int maxy = y1 > y2 ? y1 : y2;
+
+    if (!array_zero_elements(&done, 0, done.len, status)) {
+      for (size_t k = 0; k < bmap->blocks.len; k--) {
+        array_free(array_index_fast(&bmap->blocks, k));
+      }
+
+      array_free(&bmap->blocks);
+      array_free(&done);
+      return false;
+    }
+
+    // The line always belongs to the blocks containing its endpoints
+
+    bx = (x1 - xorg) >> BLKSHIFT;
+    by = (y1 - yorg) >> BLKSHIFT;
+
+    if (!add_block_line(bmap, done, by * bmap->width + bx, i, status)) {
+      for (size_t k = 0; k < bmap->blocks.len; k--) {
+        array_free(array_index_fast(&bmap->blocks, k));
+      }
+
+      array_free(&bmap->blocks);
+      array_free(&done);
+      return false;
+    }
+
+    bx = (x2 - xorg) >> BLKSHIFT;
+    by = (y2 - yorg) >> BLKSHIFT;
+
+    if (!add_block_line(bmap, &done, by * bmap->width + bx, i, status)) {
+      for (size_t k = 0; k < bmap->blocks.len; k--) {
+        array_free(array_index_fast(&bmap->blocks, k));
+      }
+
+      array_free(&bmap->blocks);
+      array_free(&done);
+      return false;
+    }
+
+    // For each column, see where the line along its left edge, which
+    // it contains, intersects the Linedef i. Add i to each corresponding
+    // blocklist.
+
+    if (!vert) { // don't interesect vertical lines with columns
+      for (size_t j = 0; j < bmap->width; j++) {
+        // intersection of Linedef with x = xorg + (j << BLKSHIFT)
+        // (y - y1)  dx = dy * (x - x1)
+        // y = dy * (x - x1) + y1 * dx;
+
+        int x = xorg + (j << BLKSHIFT);       // (x,y) is intersection
+        int y = (dy * (x - x1)) / dx + y1;
+        int yb = (y - yorg) >> BLKSHIFT;      // block row number
+        int yp = (y - yorg) & BLKMASK;        // y position within block
+
+        if (yb < 0 || yb > bmap->height - 1) {   // outside blockmap, continue
+          continue;
+        }
+
+        if (x < minx || x > maxx) {     // line doesn't touch column
+          continue;
+        }
+
+        // The cell that contains the intersection point is always added
+        if (!add_block_line(bmap, &done, bmap->width * yb + j, i, status)) {
+          for (size_t k = 0; k < bmap->blocks.len; k--) {
+            array_free(array_index_fast(&bmap->blocks, k));
+          }
+
+          array_free(&bmap->blocks);
+          array_free(&done);
+          return false;
+        }
+
+        // if the intersection is at a corner it depends on the slope
+        // (and whether the line extends past the intersection) which
+        // blocks are hit
+
+        if (yp == 0) {      // intersection at a corner
+          if (sneg) {       //   \ - blocks x,y-, x-,y
+            if (yb > 0 && miny < y) {
+              if (!add_block_line(bmap, &done, bmap->width * (yb - 1) + j,
+                                               i,
+                                               status)) {
+                for (size_t k = 0; k < bmap->blocks.len; k--) {
+                  array_free(array_index_fast(&bmap->blocks, k));
+                }
+
+                array_free(&bmap->blocks);
+                array_free(&done);
+                return false;
+              }
+            }
+            if (j > 0 && minx < x) {
+              if (!add_block_line(bmap, &done, bmap->width * yb + j - 1,
+                                               i,
+                                               status)) {
+                for (size_t k = 0; k < bmap->blocks.len; k--) {
+                  array_free(array_index_fast(&bmap->blocks, k));
+                }
+
+                array_free(&bmap->blocks);
+                array_free(&done);
+                return false;
+              }
+            }
+          }
+          else if (spos) { //   / - block x-,y-
+            if (yb > 0 && j > 0 && minx < x) {
+              if (!add_block_line(bmap, &done, bmap->width * (yb - 1) + j - 1,
+                                               i,
+                                               status)) {
+                for (size_t k = 0; k < bmap->blocks.len; k--) {
+                  array_free(array_index_fast(&bmap->blocks, k));
+                }
+
+                array_free(&bmap->blocks);
+                array_free(&done);
+                return false;
+              }
+            }
+          }
+          else if (horiz) { //   - - block x-,y
+            if (j > 0 && minx < x) {
+              if (!add_block_line(bmap, &done, bmap->width * yb + j - 1,
+                                               i,
+                                               status)) {
+                for (size_t k = 0; k < bmap->blocks.len; k--) {
+                  array_free(array_index_fast(&bmap->blocks, k));
+                }
+
+                array_free(&bmap->blocks);
+                array_free(&done);
+                return false;
+              }
+            }
+          }
+        }
+        else if (j > 0 && minx < x) { // else not at corner: x-,y
+          if (!add_block_line(bmap, &done, bmap->width * yb + j - 1,
+                                           i,
+                                           status)) {
+            for (size_t k = 0; k < bmap->blocks.len; k--) {
+              array_free(array_index_fast(&bmap->blocks, k));
+            }
+
+            array_free(&bmap->blocks);
+            array_free(&done);
+            return false;
+          }
+        }
+      }
+    }
+
+    // For each row, see where the line along its bottom edge, which
+    // it contains, intersects the Linedef i. Add i to all the corresponding
+    // blocklists.
+
+    if (!horiz) {
+      for (j = 0; j < bmap->height; j++) {
+        // intersection of Linedef with y = yorg + (j << BLKSHIFT)
+        // (x,y) on Linedef i satisfies: (y - y1) * dx = dy * (x - x1)
+        // x = dx * (y - y1) / dy + x1;
+
+        int y = yorg + (j << BLKSHIFT);       // (x,y) is intersection
+        int x = (dx * (y - y1)) / dy + x1;
+        int xb = (x - xorg) >> BLKSHIFT;      // block column number
+        int xp = (x - xorg) & BLKMASK;        // x position within block
+
+        if (xb < 0 || xb > bmap->width - 1) { // outside blockmap, continue
+          continue;
+        }
+
+        if (y < miny || y > maxy) {   // line doesn't touch row
+          continue;
+        }
+
+        // The cell that contains the intersection point is always added
+
+        if (add_block_line(bmap, &done, bmap->width * j + xb, i, status)) {
+          for (size_t k = 0; k < bmap->blocks.len; k--) {
+            array_free(array_index_fast(&bmap->blocks, k));
+          }
+
+          array_free(&bmap->blocks);
+          array_free(&done);
+          return false;
+        }
+
+        // if the intersection is at a corner it depends on the slope
+        // (and whether the line extends past the intersection) which
+        // blocks are hit
+
+        if (xp == 0) { // intersection at a corner
+          if (sneg) { //   \ - blocks x,y-, x-,y
+            if (j > 0 && miny < y) {
+              if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb,
+                                               i,
+                                               status)) {
+                for (size_t k = 0; k < bmap->blocks.len; k--) {
+                  array_free(array_index_fast(&bmap->blocks, k));
+                }
+
+                array_free(&bmap->blocks);
+                array_free(&done);
+                return false;
+              }
+            }
+            if (xb > 0 && minx < x) {
+              if (!add_block_line(bmap, &done, bmap->width * j + xb - 1,
+                                               i,
+                                               status)) {
+                for (size_t k = 0; k < bmap->blocks.len; k--) {
+                  array_free(array_index_fast(&bmap->blocks, k));
+                }
+
+                array_free(&bmap->blocks);
+                array_free(&done);
+                return false;
+              }
+            }
+          }
+          else if (vert) { //   | - block x,y-
+            if (j > 0 && miny < y) {
+              if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb,
+                                               i,
+                                               status)) {
+                for (size_t k = 0; k < bmap->blocks.len; k--) {
+                  array_free(array_index_fast(&bmap->blocks, k));
+                }
+
+                array_free(&bmap->blocks);
+                array_free(&done);
+                return false;
+              }
+            }
+          }
+          else if (spos) { //   / - block x-,y-
+            if (xb > 0 && j > 0 && miny < y) {
+              if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb - 1,
+                                               i,
+                                               status)) {
+                for (size_t k = 0; k < bmap->blocks.len; k--) {
+                  array_free(array_index_fast(&bmap->blocks, k));
+                }
+
+                array_free(&bmap->blocks);
+                array_free(&done);
+                return false;
+              }
+            }
+          }
+        }
+        else if (j > 0 && miny < y) { // else not on a corner: x,y-
+          if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb, i)) {
+            for (size_t k = 0; k < bmap->blocks.len; k--) {
+              array_free(array_index_fast(&bmap->blocks, k));
+            }
+
+            array_free(&bmap->blocks);
+            array_free(&done);
+            return false;
+          }
+        }
+      }
+    }
+  }
+
+  array_free(&done);
+
+  return status_ok(status);
+}
+
+bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
+                                                    Status *status) {
+  int16_t bmaporgx;
+  int16_t bmaporgy;
+  int16_t bmapwidth;
+  int16_t bmapheight;
+  size_t  block_count;
+  size_t  dir_start = 8;
+  size_t  list_start;
+  size_t  previous_offset;
+
+  if (dir_start >= lump->data.len) {
+    return truncated_blockmap_header(status);
+  }
+
+  cbmemmove((void *)&bmaporgx,   &lump->data.data[0], 2);
+  cbmemmove((void *)&bmaporgy,   &lump->data.data[2], 2);
+  cbmemmove((void *)&bmapwidth,  &lump->data.data[4], 2);
+  cbmemmove((void *)&bmapheight, &lump->data.data[6], 2);
+
+  bmaporgx   = cble16(bmaporgx);
+  bmaporgy   = cble16(bmaporgy);
+  bmapwidth  = cble16(bmapwidth);
+  bmapheight = cble16(bmapheight);
+
+  block_count = ((size_t)bmapwidth) * ((size_t)bmapheight);
+  list_start = (dir_start + (2 * block_count));
+
+  if (list_start >= lump->data.len) {
+    return truncated_blockmap_line_list_directory(status);
+  }
+
+  previous_offset = list_start;
+
+  if (!array_init(&bmap->blocks, sizeof(Array), status)) {
+    return false;
+  }
+
+  if (!array_set_size(&bmap->blocks, block_count, status)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < block_count; i++) {
+    Array   *line_list;
+    size_t   delta = 0;
+    size_t   line_count = 0;
+    size_t   line_list_pos = 8 + (i * 2);
+    uint16_t offset = (
+      (((uint8_t)(*lump->data.data[line_list_pos    ])) << 8) +
+       ((uint8_t)(*lump->data.data[line_list_pos + 1]))
+    );
+
+    offset = cble16(offset);
+
+    if ((offset < list_start) ||
+        (offset > (list->data.len - 4)) ||
+        (offset < (previous_offset + 4))) {
+      for (size_t j = i; j > 0; j--) {
+        array_free(array_index_fast(&bmap->blocks, j - 1));
+      }
+
+      array_free(&bmap->blocks);
+
+      return invalid_offset_in_blockmap_directory(status);
+    }
+
+    delta = offset - previous_offset;
+
+    if ((delta % 2) != 0) {
+      for (size_t j = i; j > 0; j--) {
+        array_free(array_index_fast(&bmap->blocks, j - 1));
+      }
+
+      array_free(&bmap->blocks);
+
+      return invalid_offset_in_blockmap_directory(status);
+    }
+
+    line_list = array_index_fast(&bmap->blocks, i);
+
+    if (!array_init(line_list, sizeof(size_t), status)) {
+      for (size_t j = i; j > 0; j--) {
+        array_free(array_index_fast(&bmap->blocks, j - 1));
+      }
+
+      array_free(&bmap->blocks);
+
+      return false;
+    }
+
+    line_count = delta / 2
+
+    if (!array_set_size(line_list, line_count, status)) {
+      array_free(line_list);
+
+      for (size_t j = i; j > 0; j--) {
+        array_free(array_index_fast(&bmap->blocks, j - 1));
+      }
+
+      array_free(&bmap->blocks);
+
+      return false;
+    }
+
+    for (size_t j = 0; j < line_count; j++) {
+      size_t   *line_index_slot = array_index_fast(line_list, j);
+      size_t    pos = offset + (j * 2);
+      uint16_t  line_index = (
+        (((uint8_t)(*lump->data.data[pos    ])) << 8) +
+         ((uint8_t)(*lump->data.data[pos + 1]))
+      );
+
+      *line_index_slot = cble16(line_index);
+    }
+
+    previous_offset = offset;
+  }
+
+  bmap->width    = (size_t)bmapwidth;
+  bmap->height   = (size_t)bmapheight;
+  bmap->origin_x = bmaporgx << FRACBITS;
+  bmap->origin_y = bmaporgy << FRACBITS;
+
+  return status_ok(status);
+}
+
+/* vi: set et ts=2 sw=2: */

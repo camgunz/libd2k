@@ -4,6 +4,7 @@
 #include "cbase.h"
 
 #include "d2k/wad.h"
+#include "d2k/map.h"
 
 #endif
 
