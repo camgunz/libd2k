@@ -457,6 +457,8 @@ bool d2k_lump_directory_init(D2KLumpDirectory *lump_directory,
         return false;
       }
     }
+
+    lump->index = i;
   }
 
   return status_ok(status);

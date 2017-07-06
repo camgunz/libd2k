@@ -56,6 +56,7 @@ typedef struct D2KWadStruct {
 } D2KWad;
 
 typedef struct D2KLumpStruct {
+  size_t            index;
   D2KLumpNamespace  ns;
   D2KWad           *wad;
   Slice             data;
