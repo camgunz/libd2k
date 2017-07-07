@@ -20,35 +20,37 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_BLOCKMAP_H__
-#define D2K_BLOCKMAP_H__
+#ifndef D2K_FIXEDMATH_H__
+#define D2K_FIXEDMATH_H__
 
-struct D2KMapStruct;
-typedef struct D2KMapStruct D2KMap;
+/*
+ * Fixed point, 32bit as 16.16.
+ */
 
-struct D2KLumpStruct;
-typedef struct D2KLumpStruct D2KLump;
+#define FRACBITS 16
+#define FRACUNIT (1 << FRACBITS)
 
-enum {
-  D2K_BLOCKMAP_NEGATIVE_WIDTH,
-  D2K_BLOCKMAP_NEGATIVE_HEIGHT,
-  D2K_BLOCKMAP_TRUNCATED_HEADER,
-  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
-  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
-};
+typedef int32_t D2KFixedPoint;
 
-typedef struct D2KBlockmapStruct {
-  size_t        width;
-  size_t        height;
-  D2KFixedPoint origin_x;
-  D2KFixedPoint origin_y;
-  Array         blocks;
-} D2KBlockmap;
+static inline D2KFixedPoint d2k_fixed_mul(D2KFixedPoint a, D2KFixedPoint b) {
+  return (D2KFixedPoint)((int64_t) a * b >> FRACBITS);
+}
 
-bool d2k_blockmap_init_from_map(D2KBlockmap *bmap, D2KMap *map,
-                                                   Status *status);
-bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
-                                                    Status *status);
+static inline D2KFixedPoint d2k_fixed_div(D2KFixedPoint a, D2KFixedPoint b) {
+  return (abs(a) >> 14) >= abs(b) ? ((a ^ b) >> 31) ^ INT_MAX :
+    (D2KFixedPoint)(((int64_t) a << FRACBITS) / b
+  );
+}
+
+static inline D2KFixedPoint d2k_fixed_mod(D2KFixedPoint a, D2KFixedPoint b) {
+  if (b & (b - 1)) {
+    D2KFixedPoint r = a % b;
+
+    return ((r < 0) ? r + b : r);
+  }
+
+  return (a & (b - 1));
+}
 
 #endif
 

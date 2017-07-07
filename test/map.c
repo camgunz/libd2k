@@ -5,7 +5,7 @@
 
 #include <cmocka.h>
 
-void test_wad(void **state) {
+void test_map(void **state) {
     Status status;
 
     (void)state;

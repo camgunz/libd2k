@@ -23,8 +23,10 @@
 #ifndef D2K_MAP_H__
 #define D2K_MAP_H__
 
+/*
 enum {
 };
+*/
 
 typedef struct D2KMapStruct {
   Array vertexes;
@@ -36,8 +38,6 @@ typedef struct D2KMapStruct {
   Array sides;
   Array sslines;
 } D2KMap;
-
-bool d2k_map_init(
 
 #endif
 

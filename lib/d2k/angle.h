@@ -20,35 +20,52 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_BLOCKMAP_H__
-#define D2K_BLOCKMAP_H__
+#ifndef D2K_ANGLE_H__
+#define D2K_ANGLE_H__
 
-struct D2KMapStruct;
-typedef struct D2KMapStruct D2KMap;
+struct D2KLumpDirectoryStruct;
+typedef struct D2KLumpDirectoryStruct D2KLumpDirectory;
 
-struct D2KLumpStruct;
-typedef struct D2KLumpStruct D2KLump;
+#define FINEANGLES 8192
+#define FINEMASK   (FINEANGLES - 1)
 
-enum {
-  D2K_BLOCKMAP_NEGATIVE_WIDTH,
-  D2K_BLOCKMAP_NEGATIVE_HEIGHT,
-  D2K_BLOCKMAP_TRUNCATED_HEADER,
-  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
-  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
-};
+#define ANGLETOFINESHIFT 19 /* 0x100000000 to 0x2000 */
 
-typedef struct D2KBlockmapStruct {
-  size_t        width;
-  size_t        height;
-  D2KFixedPoint origin_x;
-  D2KFixedPoint origin_y;
-  Array         blocks;
-} D2KBlockmap;
+/* Binary Angle Measument, BAM. */
+#define ANG45     0x20000000
+#define ANG90     0x40000000
+#define ANG180    0x80000000
+#define ANG270    0xc0000000
+#define ANG1      (ANG45 / 45)
+#define ANGLE_MAX 0xFFFFFFFF
 
-bool d2k_blockmap_init_from_map(D2KBlockmap *bmap, D2KMap *map,
-                                                   Status *status);
-bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
-                                                    Status *status);
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#define SLOPERANGE 2048
+#define SLOPEBITS    11
+#define DBITS      (FRACBITS - SLOPEBITS)
+
+#define SINE_COUNT             (5 * FINEANGLES / 4) /* 10240 */
+#define COSINE_COUNT           FINEANGLES           /*  8192 */
+#define TANGENT_COUNT          (FINEANGLES / 2)     /*  4096 */
+
+/* The +1 size is to handle the case when x==y without additional checking. */
+#define TANGENT_TO_ANGLE_COUNT (SLOPERANGE + 1)     /*  2049 */
+
+typedef uint32_t D2KAngle;
+
+/* Utility function, called by R_PointToAngle. */
+typedef int (*slope_div_fn)(uint32_t num, uint32_t den);
+
+int  d2k_slope_div(uint32_t num, uint32_t den);
+int  d2k_slope_div_ex(unsigned int num, unsigned int den);
+void d2k_angle_load_trig_tables(D2KLumpDirectory *lump_directory,
+                                D2KFixedPoint *finesine,
+                                D2KFixedPoint *finetangent,
+                                D2KAngle *tantoangle,
+                                Status *status);
 
 #endif
 

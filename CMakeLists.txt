@@ -221,6 +221,7 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/lib)
 
 SET(LIBD2K_SOURCE_FILES
   ${CMAKE_SOURCE_DIR}/lib/blockmap.c
+  ${CMAKE_SOURCE_DIR}/lib/angle.c
   ${CMAKE_SOURCE_DIR}/lib/map.c
   ${CMAKE_SOURCE_DIR}/lib/wad.c
 )

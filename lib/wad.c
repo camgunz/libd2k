@@ -177,7 +177,10 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
     return too_small(status);
   }
 
-  cbmemmove(&identification[0], wad->data.data, 4);
+  if (!buffer_read(&wad->data, 0, sizeof(char) * 4, (void *)&identification[0],
+                                                    status)) {
+    return false;
+  }
 
   if (((identification[0] != 'P') && (identification[0] != 'I')) ||
                                      (identification[1] != 'W')  ||
@@ -186,7 +189,10 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
     return invalid_identification(status);
   }
 
-  cbmemmove((void *)&numlumps, wad->data.data + 4, 4);
+  if (!buffer_read(&wad->data, 4, sizeof(int32_t), (void *)numlumps)) {
+    return false;
+  }
+
   numlumps = cble32(numlumps);
 
   if (numlumps == 0) {
@@ -199,7 +205,11 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
 
   lump_count = (size_t)numlumps;
 
-  cbmemmove((void *)&infotableofs, wad->data.data + 8, 4);
+  if (!buffer_read(&wad->data, 8, sizeof(int32_t), (void *)&infotableofs,
+                                                   status)) {
+    return false;
+  }
+
   infotableofs = cble32(infotableofs);
 
   if (infotableofs < 28) {
@@ -225,10 +235,22 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
       return false;
     }
 
-    cbmemmove((void *)&filepos, wad->data.data + entry_start, 4);
+    if (!buffer_read(&wad->data, entry_start, sizeof(int32_t),
+                                              (void *)&filepos,
+                                              status)) {
+      array_free(&wad->lumps);
+      return false;
+    }
+
     lump_data_start = (size_t)cble32(filepos);
 
-    cbmemmove((void *)&size, wad->data.data + entry_start + 4, 4);
+    if (!buffer_read(&wad->data, entry_start + 4, sizeof(int32_t),
+                                                  (void *)&size,
+                                                  status)) {
+      array_free(&wad->lumps);
+      return false;
+    }
+
     lump_data_len = (size_t)cble32(size);
 
     if (!buffer_slice(&wad->data, lump_data_start, lump_data_len, &lump->data,

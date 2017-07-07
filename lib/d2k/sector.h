@@ -20,35 +20,56 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_BLOCKMAP_H__
-#define D2K_BLOCKMAP_H__
+#ifndef D2K_SECTOR_H__
+#define D2K_SECTOR_H__
 
-struct D2KMapStruct;
-typedef struct D2KMapStruct D2KMap;
-
-struct D2KLumpStruct;
-typedef struct D2KLumpStruct D2KLump;
-
-enum {
-  D2K_BLOCKMAP_NEGATIVE_WIDTH,
-  D2K_BLOCKMAP_NEGATIVE_HEIGHT,
-  D2K_BLOCKMAP_TRUNCATED_HEADER,
-  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
-  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
-};
-
-typedef struct D2KBlockmapStruct {
-  size_t        width;
-  size_t        height;
-  D2KFixedPoint origin_x;
-  D2KFixedPoint origin_y;
-  Array         blocks;
-} D2KBlockmap;
-
-bool d2k_blockmap_init_from_map(D2KBlockmap *bmap, D2KMap *map,
-                                                   Status *status);
-bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
-                                                    Status *status);
+typedef struct D2KSectorStruct {
+  size_t             id;
+  uint32_t           flags;
+  D2KFixedPoint      floor_height;
+  D2KFixedPoint      ceiling_height;
+  int                next_tag;
+  int                first_tag;
+  int                sound_traversed;
+  D2KMapObject      *sound_target;
+  int                blockbox[4];
+  int                bbox[4];
+  degenmobj_t        sound_origin;
+  int                valid_count;
+  D2KMapObject      *things;
+  int                friction;
+  int                move_factor;
+  void              *floor_data;
+  void              *ceiling_data;
+  void              *lighting_data;
+  int                stair_lock;
+  int                previous_sector;
+  int                next_sector;
+  int                height_sector;
+  int                bottom_map;
+  int                mid_map;
+  int                top_map;
+  D2KMapSectorNodes *touching_thinglist;
+  PArray             lines;
+  int                sky;
+  D2KFixedPoint      floor_x_offset;
+  D2KFixedPoint      floor_y_offset;
+  D2KFixedPoint      ceiling_x_offset;
+  D2KFixedPoint      ceiling_y_offset;
+  int                floor_light_sector;
+  int                ceiling_light_sector;
+  short              floor_pic;
+  short              ceiling_pic;
+  short              light_level;
+  short              special;
+  short              old_special;
+  short              tag;
+  int                sector_floor_interpolation;
+  int                sector_ceiling_interpolation;
+  int                floor_panning_interpolation;
+  int                ceiling_panning_interpolation;
+  int                fakegroup[2];
+} D2KSector;
 
 #endif
 

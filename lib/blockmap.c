@@ -21,14 +21,34 @@
 /*****************************************************************************/
 
 #include "d2k/internal.h"
-#include "d2k/wad.h"
+
+#include "d2k/fixed_math.h"
+#include "d2k/angle.h"
+
+#include "d2k/blockmap.h"
+#include "d2k/fixed_vertex.h"
 #include "d2k/map.h"
+#include "d2k/wad.h"
 
 /* places to shift rel position for cell num */
 #define BLKSHIFT 7
 
 /* mask for rel position within cell */
 #define BLKMASK ((1 << BLKSHIFT) - 1)
+
+#define negative_blockmap_width(status) status_error( \
+  status,                                             \
+  "d2k_blockmap",                                     \
+  D2K_BLOCKMAP_NEGATIVE_WIDTH,                        \
+  "blockmap width is negative"                        \
+)
+
+#define negative_blockmap_height(status) status_error( \
+  status,                                              \
+  "d2k_blockmap",                                      \
+  D2K_BLOCKMAP_NEGATIVE_HEIGHT,                        \
+  "blockmap height is negative"                        \
+)
 
 #define truncated_blockmap_header(status) status_error( \
   status,                                               \
@@ -80,7 +100,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
   Array done;
 
   for (size_t i = 0; i < map->vertexes.len; i++) {
-    vertex_t *v = array_index_fast(&map->vertexes, i);
+    D2KFixedVertex *v = array_index_fast(&map->vertexes, i);
 
     if (v->x < map_minx) {
       map_minx = v->x;
@@ -454,15 +474,38 @@ bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
     return truncated_blockmap_header(status);
   }
 
-  cbmemmove((void *)&bmaporgx,   &lump->data.data[0], 2);
-  cbmemmove((void *)&bmaporgy,   &lump->data.data[2], 2);
-  cbmemmove((void *)&bmapwidth,  &lump->data.data[4], 2);
-  cbmemmove((void *)&bmapheight, &lump->data.data[6], 2);
+  if (!slice_read(&lump->data, 0, sizeof(int16_t), (void *)&bmaporgx,
+                                                   status)) {
+    return false;
+  }
+
+  if (!slice_read(&lump->data, 2, sizeof(int16_t), (void *)&bmaporgy,
+                                                   status)) {
+    return false;
+  }
+
+  if (!slice_read(&lump->data, 4, sizeof(int16_t), (void *)&bmapwidth,
+                                                   status)) {
+    return false;
+  }
+
+  if (!slice_read(&lump->data, 6, sizeof(int16_t), (void *)&bmapheight,
+                                                   status)) {
+    return false;
+  }
 
   bmaporgx   = cble16(bmaporgx);
   bmaporgy   = cble16(bmaporgy);
   bmapwidth  = cble16(bmapwidth);
   bmapheight = cble16(bmapheight);
+
+  if (bmapwidth < 0) {
+    return negative_blockmap_width(status);
+  }
+
+  if (bmapheight < 0) {
+    return negative_blockmap_height(status);
+  }
 
   block_count = ((size_t)bmapwidth) * ((size_t)bmapheight);
   list_start = (dir_start + (2 * block_count));

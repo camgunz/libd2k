@@ -5,12 +5,16 @@
 
 #include <cmocka.h>
 
+void test_blockmap(void **state);
+void test_map(void **state);
 void test_wad(void **state);
 
 int main(void) {
     int failed_test_count = 0;
 
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_blockmap),
+        cmocka_unit_test(test_map),
         cmocka_unit_test(test_wad),
     };
 

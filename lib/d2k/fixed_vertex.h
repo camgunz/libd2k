@@ -20,35 +20,15 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_BLOCKMAP_H__
-#define D2K_BLOCKMAP_H__
+#ifndef D2K_FIXEDVERTEX_H__
+#define D2K_FIXEDVERTEX_H__
 
-struct D2KMapStruct;
-typedef struct D2KMapStruct D2KMap;
-
-struct D2KLumpStruct;
-typedef struct D2KLumpStruct D2KLump;
-
-enum {
-  D2K_BLOCKMAP_NEGATIVE_WIDTH,
-  D2K_BLOCKMAP_NEGATIVE_HEIGHT,
-  D2K_BLOCKMAP_TRUNCATED_HEADER,
-  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
-  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
-};
-
-typedef struct D2KBlockmapStruct {
-  size_t        width;
-  size_t        height;
-  D2KFixedPoint origin_x;
-  D2KFixedPoint origin_y;
-  Array         blocks;
-} D2KBlockmap;
-
-bool d2k_blockmap_init_from_map(D2KBlockmap *bmap, D2KMap *map,
-                                                   Status *status);
-bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
-                                                    Status *status);
+typedef struct D2KFixedVertexStruct {
+  D2KFixedPoint x;
+  D2KFixedPoint y;
+  D2KAngle      view_angle;
+  int           angle_time;
+} D2KFixedVertex;
 
 #endif
 
