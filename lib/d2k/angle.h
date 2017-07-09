@@ -24,7 +24,6 @@
 #define D2K_ANGLE_H__
 
 struct D2KLumpDirectoryStruct;
-typedef struct D2KLumpDirectoryStruct D2KLumpDirectory;
 
 #define FINEANGLES 8192
 #define FINEMASK   (FINEANGLES - 1)
@@ -54,6 +53,12 @@ typedef struct D2KLumpDirectoryStruct D2KLumpDirectory;
 /* The +1 size is to handle the case when x==y without additional checking. */
 #define TANGENT_TO_ANGLE_COUNT (SLOPERANGE + 1)     /*  2049 */
 
+enum {
+  D2K_ANGLE_INVALID_SINE_TABLE = 1,
+  D2K_ANGLE_INVALID_TANGENT_TABLE,
+  D2K_ANGLE_INVALID_TANGENT_TO_ANGLE_TABLE,
+};
+
 typedef uint32_t D2KAngle;
 
 /* Utility function, called by R_PointToAngle. */
@@ -61,8 +66,9 @@ typedef int (*slope_div_fn)(uint32_t num, uint32_t den);
 
 int  d2k_slope_div(uint32_t num, uint32_t den);
 int  d2k_slope_div_ex(unsigned int num, unsigned int den);
-void d2k_angle_load_trig_tables(D2KLumpDirectory *lump_directory,
+bool d2k_angle_load_trig_tables(struct D2KLumpDirectoryStruct *lump_directory,
                                 D2KFixedPoint *finesine,
+                                D2KFixedPoint *finecosine,
                                 D2KFixedPoint *finetangent,
                                 D2KAngle *tantoangle,
                                 Status *status);

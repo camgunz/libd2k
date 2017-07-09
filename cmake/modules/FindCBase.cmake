@@ -3,15 +3,14 @@ INCLUDE(FindPackageHandleStandardArgs)
 IF (NOT CBASE_INCLUDE_DIR)
     FIND_PATH(CBASE_INCLUDE_DIR
         NAMES cbase.h
-        HINTS $ENV{CBASE_INCLUDE_DIR}
-        PATH_SUFFIXES cbase
+        HINTS $ENV{CBASE_PREFIX}/include
     )
 ENDIF()
 
 IF (NOT CBASE_LIBRARIES)
     FIND_LIBRARY(CBASE_LIBRARIES
         NAMES cbase
-        HINTS $ENV{CBASE_LIB_DIR}
+        HINTS $ENV{CBASE_PREFIX}/lib
     )
 ENDIF()
 

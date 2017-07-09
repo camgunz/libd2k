@@ -20,32 +20,53 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_BLOCKMAP_H__
-#define D2K_BLOCKMAP_H__
+#ifndef D2K_LINE_H__
+#define D2K_LINE_H__
 
-struct D2KMapStruct;
-struct D2KLumpStruct;
+#include "d2k/sound_origin.h"
 
-enum {
-  D2K_BLOCKMAP_NEGATIVE_WIDTH,
-  D2K_BLOCKMAP_NEGATIVE_HEIGHT,
-  D2K_BLOCKMAP_TRUNCATED_HEADER,
-  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
-  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
-};
+struct D2KSectorStruct;
 
-typedef struct D2KBlockmapStruct {
-  size_t        width;
-  size_t        height;
-  D2KFixedPoint origin_x;
-  D2KFixedPoint origin_y;
-  Array         blocks;
-} D2KBlockmap;
+typedef enum {
+  D2K_SLOPE_TYPE_HORIZONTAL,
+  D2K_SLOPE_TYPE_VERTICAL,
+  D2K_SLOPE_TYPE_POSITIVE,
+  D2K_SLOPE_TYPE_NEGATIVE
+} D2KSlopeType;
 
-bool d2k_blockmap_init_from_map(D2KBlockmap *bmap, struct D2KMapStruct *map,
-                                                   Status *status);
-bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, struct D2KLumpStruct *lump,
-                                                    Status *status);
+typedef enum {
+  D2K_LINE_RENDER_FLAG_TOP_TILE =  1,
+  D2K_LINE_RENDER_FLAG_MID_TILE =  2,
+  D2K_LINE_RENDER_FLAG_BOT_TILE =  4,
+  D2K_LINE_RENDER_FLAG_IGNORE   =  8,
+  D2K_LINE_RENDER_FLAG_CLOSED   = 16,
+  D2K_LINE_RENDER_FLAG_ISOLATED = 32,
+} D2KLineRenderFlags;
+
+typedef struct D2KLineStruct {
+  uint32_t                id;
+  D2KFixedVertex         *v1;
+  D2KFixedVertex         *v2;
+  D2KFixedPoint           dx;
+  D2KFixedPoint           dy;
+  float                   texel_length;
+  unsigned short          flags;
+  short                   special;
+  short                   tag;
+  unsigned short          sidenum[2];
+  D2KFixedPoint           bbox[4];
+  D2KSlopeType            slope;
+  struct D2KSectorStruct *front_sector;
+  struct D2KSectorStruct *back_sector;
+  int                     valid_count;
+  void                   *special_data;
+  int                     tran_lump;
+  int                     first_tag;
+  int                     next_tag;
+  int                     r_valid_count;
+  D2KLineRenderFlags      r_flags;
+  D2KSoundOrigin          sound_origin;
+} D2KLine;
 
 #endif
 

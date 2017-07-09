@@ -20,32 +20,23 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_BLOCKMAP_H__
-#define D2K_BLOCKMAP_H__
+#ifndef D2K_THINKER_H__
+#define D2K_THINKER_H__
 
-struct D2KMapStruct;
-struct D2KLumpStruct;
+typedef void (*actionf_t)();
+typedef void (*actionf_v)();
+typedef void (*actionf_p1)(void *);
+typedef void (*actionf_p2)(void *, void *);
+typedef actionf_t think_t;
 
-enum {
-  D2K_BLOCKMAP_NEGATIVE_WIDTH,
-  D2K_BLOCKMAP_NEGATIVE_HEIGHT,
-  D2K_BLOCKMAP_TRUNCATED_HEADER,
-  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
-  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
-};
-
-typedef struct D2KBlockmapStruct {
-  size_t        width;
-  size_t        height;
-  D2KFixedPoint origin_x;
-  D2KFixedPoint origin_y;
-  Array         blocks;
-} D2KBlockmap;
-
-bool d2k_blockmap_init_from_map(D2KBlockmap *bmap, struct D2KMapStruct *map,
-                                                   Status *status);
-bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, struct D2KLumpStruct *lump,
-                                                    Status *status);
+typedef struct D2KThinkerStruct {
+  struct  D2KThinkerStruct *prev;
+  struct  D2KThinkerStruct *next;
+  think_t                   function;
+  struct  D2KThinkerStruct *cnext;
+  struct  D2KThinkerStruct *cprev;
+  unsigned int references;
+} D2KThinker;
 
 #endif
 

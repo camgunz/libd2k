@@ -26,8 +26,11 @@
 #include "d2k/angle.h"
 
 #include "d2k/blockmap.h"
+#include "d2k/thinker.h"
 #include "d2k/fixed_vertex.h"
+#include "d2k/line.h"
 #include "d2k/map.h"
+#include "d2k/sector.h"
 #include "d2k/wad.h"
 
 /* places to shift rel position for cell num */
@@ -78,7 +81,7 @@ static inline bool add_block_line(D2KBlockmap *bmap, Array *done,
   bool *skip = array_index_fast(done, block_index);
 
   if (!(*skip)) {
-    size_t *block_line_index;
+    size_t *block_line_index = NULL;
 
     if (!array_append(&bmap->blocks, (void **)block_line_index, status)) {
       return false;
@@ -110,7 +113,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
     }
 
     if (v->y < map_miny) {
-      map_miny = t;
+      map_miny = v->y;
     }
     else if (v->y > map_maxy) {
       map_maxy = v->y;
@@ -120,10 +123,10 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
   bmap->origin_x = map_minx;
   bmap->origin_y = map_miny;
 
-  map_minx >>= FRACBITS;
-  map_maxx >>= FRACBITS;
-  map_miny >>= FRACBITS;
-  map_maxy >>= FRACBITS;
+  map_minx = d2k_fixed_point_to_int(map_minx);
+  map_maxx = d2k_fixed_point_to_int(map_maxx);
+  map_miny = d2k_fixed_point_to_int(map_miny);
+  map_maxy = d2k_fixed_point_to_int(map_maxy);
 
   xorg = map_minx;
   yorg = map_miny;
@@ -133,19 +136,14 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
 
   /* [CG] No need to check for overflow here because of the right shift */
 
-  if (!array_init(&bmap->blocks, sizeof(Array), status)) {
-    return false;
-  }
+  array_init(&bmap->blocks, sizeof(Array));
 
   if (!array_set_size(&bmap->blocks, bmap->width * bmap->height, status)) {
     array_free(&bmap->blocks);
     return false;
   }
 
-  if (!array_init(&done, sizeof(bool), status)) {
-    array_free(&bmap->blocks);
-    return false;
-  }
+  array_init(&done, sizeof(bool));
 
   if (!array_set_size(&done, bmap->blocks.len, status)) {
     array_free(&bmap->blocks);
@@ -156,21 +154,13 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
   for (size_t i = 0; i < bmap->blocks.len; i++) {
     Array *line_list = array_index_fast(&bmap->blocks, i);
 
-    if (!array_init(line_list, sizeof(size_t), status)) {
-      for (size_t j = i; j > 0; j--) {
-        array_free(array_index_fast(&bmap->blocks, j - 1));
-      }
-
-      array_free(&bmap->blocks);
-      array_free(&done);
-      return false;
-    }
+    array_init(line_list, sizeof(size_t));
   }
 
   // For each linedef in the wad, determine all blockmap blocks it touches,
   // and add the linedef number to the blocklists for those blocks
-  for (size_t i = 0; i < map->lines.count; i++) {
-    line_t *line = array_index_fast(&map->lines, i);
+  for (size_t i = 0; i < map->lines.len; i++) {
+    D2KLine *line = array_index_fast(&map->lines, i);
     int x1 = line->v1->x >> FRACBITS;
     int y1 = line->v1->y >> FRACBITS;
     int x2 = line->v2->x >> FRACBITS;
@@ -203,7 +193,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
     bx = (x1 - xorg) >> BLKSHIFT;
     by = (y1 - yorg) >> BLKSHIFT;
 
-    if (!add_block_line(bmap, done, by * bmap->width + bx, i, status)) {
+    if (!add_block_line(bmap, &done, by * bmap->width + bx, i, status)) {
       for (size_t k = 0; k < bmap->blocks.len; k--) {
         array_free(array_index_fast(&bmap->blocks, k));
       }
@@ -241,7 +231,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
         int yb = (y - yorg) >> BLKSHIFT;      // block row number
         int yp = (y - yorg) & BLKMASK;        // y position within block
 
-        if (yb < 0 || yb > bmap->height - 1) {   // outside blockmap, continue
+        if (yb < 0 || (unsigned int)yb > bmap->height - 1) {
           continue;
         }
 
@@ -345,7 +335,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
     // blocklists.
 
     if (!horiz) {
-      for (j = 0; j < bmap->height; j++) {
+      for (size_t j = 0; j < bmap->height; j++) {
         // intersection of Linedef with y = yorg + (j << BLKSHIFT)
         // (x,y) on Linedef i satisfies: (y - y1) * dx = dy * (x - x1)
         // x = dx * (y - y1) / dy + x1;
@@ -355,7 +345,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
         int xb = (x - xorg) >> BLKSHIFT;      // block column number
         int xp = (x - xorg) & BLKMASK;        // x position within block
 
-        if (xb < 0 || xb > bmap->width - 1) { // outside blockmap, continue
+        if (xb < 0 || (size_t)xb > bmap->width - 1) { // outside blockmap, continue
           continue;
         }
 
@@ -440,7 +430,9 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
           }
         }
         else if (j > 0 && miny < y) { // else not on a corner: x,y-
-          if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb, i)) {
+          if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb,
+                                           i,
+                                           status)) {
             for (size_t k = 0; k < bmap->blocks.len; k--) {
               array_free(array_index_fast(&bmap->blocks, k));
             }
@@ -516,9 +508,7 @@ bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
 
   previous_offset = list_start;
 
-  if (!array_init(&bmap->blocks, sizeof(Array), status)) {
-    return false;
-  }
+  array_init(&bmap->blocks, sizeof(Array));
 
   if (!array_set_size(&bmap->blocks, block_count, status)) {
     return false;
@@ -530,14 +520,14 @@ bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
     size_t   line_count = 0;
     size_t   line_list_pos = 8 + (i * 2);
     uint16_t offset = (
-      (((uint8_t)(*lump->data.data[line_list_pos    ])) << 8) +
-       ((uint8_t)(*lump->data.data[line_list_pos + 1]))
+      (((uint8_t)(lump->data.data[line_list_pos    ])) << 8) +
+       ((uint8_t)(lump->data.data[line_list_pos + 1]))
     );
 
     offset = cble16(offset);
 
     if ((offset < list_start) ||
-        (offset > (list->data.len - 4)) ||
+        (offset > (lump->data.len - 4)) ||
         (offset < (previous_offset + 4))) {
       for (size_t j = i; j > 0; j--) {
         array_free(array_index_fast(&bmap->blocks, j - 1));
@@ -562,17 +552,8 @@ bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
 
     line_list = array_index_fast(&bmap->blocks, i);
 
-    if (!array_init(line_list, sizeof(size_t), status)) {
-      for (size_t j = i; j > 0; j--) {
-        array_free(array_index_fast(&bmap->blocks, j - 1));
-      }
-
-      array_free(&bmap->blocks);
-
-      return false;
-    }
-
-    line_count = delta / 2
+    array_init(line_list, sizeof(size_t));
+    line_count = delta / 2;
 
     if (!array_set_size(line_list, line_count, status)) {
       array_free(line_list);
@@ -590,8 +571,8 @@ bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
       size_t   *line_index_slot = array_index_fast(line_list, j);
       size_t    pos = offset + (j * 2);
       uint16_t  line_index = (
-        (((uint8_t)(*lump->data.data[pos    ])) << 8) +
-         ((uint8_t)(*lump->data.data[pos + 1]))
+        (((uint8_t)(lump->data.data[pos    ])) << 8) +
+         ((uint8_t)(lump->data.data[pos + 1]))
       );
 
       *line_index_slot = cble16(line_index);

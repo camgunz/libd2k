@@ -32,6 +32,28 @@
 
 typedef int32_t D2KFixedPoint;
 
+static inline int32_t d2k_fixed_point_to_int(D2KFixedPoint fp) {
+  return fp >> FRACBITS;
+}
+
+static inline D2KFixedPoint d2k_int_to_fixed_point(int32_t i) {
+  /*
+   * This possibly results in signed integer overflow, which is undefined
+   * behavior in C (all Doom incarnations have this issue).  Generally ports
+   * rely on the compiler to do the "right thing", which is to wrap around, but
+   * that's not at all guaranteed.
+   *
+   * Unfortunately compilers (probably due to a lack of processor support) don't
+   * provide intrinsics to check for this.  The options are:
+   * - Use a compiler flag (GCC's is `-fwrapv`)
+   * - Perform a (relatively slow) check
+   *
+   * I think the [TODO] here is to implement this in the build system and have
+   * an `#ifdef` here.
+   */
+  return i << FRACBITS;
+}
+
 static inline D2KFixedPoint d2k_fixed_mul(D2KFixedPoint a, D2KFixedPoint b) {
   return (D2KFixedPoint)((int64_t) a * b >> FRACBITS);
 }

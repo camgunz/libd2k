@@ -22,7 +22,30 @@
 
 #include "d2k/internal.h"
 
+#include "d2k/fixed_math.h"
 #include "d2k/angle.h"
+#include "d2k/wad.h"
+
+#define invalid_sine_table(status) status_error( \
+  status,                                        \
+  "d2k_angle",                                   \
+  D2K_ANGLE_INVALID_SINE_TABLE,                  \
+  "invalid sine table"                           \
+)
+
+#define invalid_tangent_table(status) status_error( \
+  status,                                           \
+  "d2k_angle",                                      \
+  D2K_ANGLE_INVALID_TANGENT_TABLE,                  \
+  "invalid tangent table"                           \
+)
+
+#define invalid_tangent_to_angle_table(status) status_error( \
+  status,                                                    \
+  "d2k_angle",                                               \
+  D2K_ANGLE_INVALID_TANGENT_TO_ANGLE_TABLE,                  \
+  "invalid tangent to angle table"                           \
+)
 
 int d2k_slope_div(uint32_t num, uint32_t den) {
   uint32_t ans;
@@ -49,14 +72,13 @@ int d2k_slope_div_ex(unsigned int num, unsigned int den) {
   return ans <= SLOPERANGE ? (int)ans : SLOPERANGE;
 }
 
-void d2k_angle_load_trig_tables(D2KLumpDirectory *lump_directory,
+bool d2k_angle_load_trig_tables(D2KLumpDirectory *lump_directory,
                                 D2KFixedPoint *finesine,
                                 D2KFixedPoint *finecosine,
                                 D2KFixedPoint *finetangent,
                                 D2KAngle *tantoangle,
                                 Status *status) {
   D2KLump *lump = NULL;
-  size_t n;
 
   if (!d2k_lump_directory_lookup_ns(lump_directory, "SINETABL",
                                                     D2K_LUMP_NAMESPACE_PRBOOM,
@@ -99,7 +121,7 @@ void d2k_angle_load_trig_tables(D2KLumpDirectory *lump_directory,
   }
 
   if (lump->data.len != (sizeof(D2KAngle) * TANGENT_TO_ANGLE_COUNT)) {
-    return invalid_tangent_to_angletable(status);
+    return invalid_tangent_to_angle_table(status);
   }
 
   if (!slice_read(&lump->data, 0, lump->data.len, (void *)tantoangle,
@@ -120,6 +142,8 @@ void d2k_angle_load_trig_tables(D2KLumpDirectory *lump_directory,
     tantoangle[i] = cble32(tantoangle[i]);
   }
 #endif
+
+  return status_ok(status);
 }
 
 /* vi: set et ts=2 sw=2: */

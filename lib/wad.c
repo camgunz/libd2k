@@ -189,7 +189,8 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
     return invalid_identification(status);
   }
 
-  if (!buffer_read(&wad->data, 4, sizeof(int32_t), (void *)numlumps)) {
+  if (!buffer_read(&wad->data, 4, sizeof(int32_t), (void *)&numlumps,
+                                                   status)) {
     return false;
   }
 

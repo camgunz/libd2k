@@ -20,8 +20,8 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_FIXEDVERTEX_H__
-#define D2K_FIXEDVERTEX_H__
+#ifndef D2K_FIXED_VERTEX_H__
+#define D2K_FIXED_VERTEX_H__
 
 typedef struct D2KFixedVertexStruct {
   D2KFixedPoint x;

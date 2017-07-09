@@ -2,10 +2,11 @@
 
 set -e
 
-export CBASE_INCLUDE_DIR=${HOME}/local/include
-export CBASE_LIB_DIR=${HOME}/local/lib
+# export CBASE_INCLUDE_DIR=${HOME}/local/include
+# export CBASE_LIB_DIR=${HOME}/local/lib
 export MPDECIMAL_INCLUDE_DIR=${HOME}/local/include
 export MPDECIMAL_LIB_DIR=${HOME}/local/lib
+export CBASE_PREFIX=${HOME}/local
 
 BUILD_DIR='cbuild'
 BUILD_TYPE='Debug'

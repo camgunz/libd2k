@@ -23,52 +23,57 @@
 #ifndef D2K_SECTOR_H__
 #define D2K_SECTOR_H__
 
+#include "d2k/sound_origin.h"
+
+struct D2KMapObjectStruct;
+struct D2KMapSectorNodesStruct;
+
 typedef struct D2KSectorStruct {
-  size_t             id;
-  uint32_t           flags;
-  D2KFixedPoint      floor_height;
-  D2KFixedPoint      ceiling_height;
-  int                next_tag;
-  int                first_tag;
-  int                sound_traversed;
-  D2KMapObject      *sound_target;
-  int                blockbox[4];
-  int                bbox[4];
-  degenmobj_t        sound_origin;
-  int                valid_count;
-  D2KMapObject      *things;
-  int                friction;
-  int                move_factor;
-  void              *floor_data;
-  void              *ceiling_data;
-  void              *lighting_data;
-  int                stair_lock;
-  int                previous_sector;
-  int                next_sector;
-  int                height_sector;
-  int                bottom_map;
-  int                mid_map;
-  int                top_map;
-  D2KMapSectorNodes *touching_thinglist;
-  PArray             lines;
-  int                sky;
-  D2KFixedPoint      floor_x_offset;
-  D2KFixedPoint      floor_y_offset;
-  D2KFixedPoint      ceiling_x_offset;
-  D2KFixedPoint      ceiling_y_offset;
-  int                floor_light_sector;
-  int                ceiling_light_sector;
-  short              floor_pic;
-  short              ceiling_pic;
-  short              light_level;
-  short              special;
-  short              old_special;
-  short              tag;
-  int                sector_floor_interpolation;
-  int                sector_ceiling_interpolation;
-  int                floor_panning_interpolation;
-  int                ceiling_panning_interpolation;
-  int                fakegroup[2];
+  uint32_t                        id;
+  uint32_t                        flags;
+  D2KFixedPoint                   floor_height;
+  D2KFixedPoint                   ceiling_height;
+  int                             next_tag;
+  int                             first_tag;
+  int                             sound_traversed;
+  struct D2KMapObjectStruct      *sound_target;
+  int                             blockbox[4];
+  int                             bbox[4];
+  D2KSoundOrigin                  sound_origin;
+  int                             valid_count;
+  struct D2KMapObjectStruct      *things;
+  int                             friction;
+  int                             move_factor;
+  void                           *floor_data;
+  void                           *ceiling_data;
+  void                           *lighting_data;
+  int                             stair_lock;
+  int                             previous_sector;
+  int                             next_sector;
+  int                             height_sector;
+  int                             bottom_map;
+  int                             mid_map;
+  int                             top_map;
+  struct D2KMapSectorNodesStruct *touching_thinglist;
+  PArray                          lines;
+  int                             sky;
+  D2KFixedPoint                   floor_x_offset;
+  D2KFixedPoint                   floor_y_offset;
+  D2KFixedPoint                   ceiling_x_offset;
+  D2KFixedPoint                   ceiling_y_offset;
+  int                             floor_light_sector;
+  int                             ceiling_light_sector;
+  short                           floor_pic;
+  short                           ceiling_pic;
+  short                           light_level;
+  short                           special;
+  short                           old_special;
+  short                           tag;
+  int                             sector_floor_interpolation;
+  int                             sector_ceiling_interpolation;
+  int                             floor_panning_interpolation;
+  int                             ceiling_panning_interpolation;
+  int                             fakegroup[2];
 } D2KSector;
 
 #endif
