@@ -21,16 +21,7 @@
 /*****************************************************************************/
 
 #include "d2k/internal.h"
-
-#include "d2k/fixed_math.h"
-#include "d2k/angle.h"
-
-#include "d2k/blockmap.h"
-#include "d2k/thinker.h"
-#include "d2k/fixed_vertex.h"
-#include "d2k/line.h"
 #include "d2k/map.h"
-#include "d2k/sector.h"
 #include "d2k/wad.h"
 
 /* places to shift rel position for cell num */
@@ -42,35 +33,35 @@
 #define negative_blockmap_width(status) status_error( \
   status,                                             \
   "d2k_blockmap",                                     \
-  D2K_BLOCKMAP_NEGATIVE_WIDTH,                        \
+  D2K_MAP_BLOCKMAP_NEGATIVE_WIDTH,                    \
   "blockmap width is negative"                        \
 )
 
 #define negative_blockmap_height(status) status_error( \
   status,                                              \
   "d2k_blockmap",                                      \
-  D2K_BLOCKMAP_NEGATIVE_HEIGHT,                        \
+  D2K_MAP_BLOCKMAP_NEGATIVE_HEIGHT,                    \
   "blockmap height is negative"                        \
 )
 
 #define truncated_blockmap_header(status) status_error( \
   status,                                               \
   "d2k_blockmap",                                       \
-  D2K_BLOCKMAP_TRUNCATED_HEADER,                        \
+  D2K_MAP_BLOCKMAP_TRUNCATED_HEADER,                    \
   "truncated blockmap lump header"                      \
 )
 
 #define truncated_blockmap_line_list_directory(status) status_error( \
   status,                                                            \
   "d2k_blockmap",                                                    \
-  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,                        \
+  D2K_MAP_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,                    \
   "truncated blockmap line list directory"                           \
 )
 
 #define invalid_offset_in_blockmap_directory(status) status_error( \
   status,                                                          \
   "d2k_blockmap",                                                  \
-  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,              \
+  D2K_MAP_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,          \
   "invalid offset in line list directory"                          \
 )
 
@@ -160,7 +151,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
   // For each linedef in the wad, determine all blockmap blocks it touches,
   // and add the linedef number to the blocklists for those blocks
   for (size_t i = 0; i < map->lines.len; i++) {
-    D2KLine *line = array_index_fast(&map->lines, i);
+    D2KLinedef *line = array_index_fast(&map->lines, i);
     int x1 = line->v1->x >> FRACBITS;
     int y1 = line->v1->y >> FRACBITS;
     int x2 = line->v2->x >> FRACBITS;

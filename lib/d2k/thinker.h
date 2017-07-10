@@ -23,16 +23,20 @@
 #ifndef D2K_THINKER_H__
 #define D2K_THINKER_H__
 
-typedef void (*actionf_t)();
-typedef void (*actionf_v)();
-typedef void (*actionf_p1)(void *);
-typedef void (*actionf_p2)(void *, void *);
-typedef actionf_t think_t;
+typedef void (*D2KActionFunction)();
+
+/* I don't think these are necessary. */
+
+#if 0
+typedef void (*D2KActionFunctionV)();
+typedef void (*D2KActionFunctionP1)(void *);
+typedef void (*D2KActionFunctionP2)(void *, void *);
+#endif
 
 typedef struct D2KThinkerStruct {
   struct  D2KThinkerStruct *prev;
   struct  D2KThinkerStruct *next;
-  think_t                   function;
+  D2KActionFunction         function;
   struct  D2KThinkerStruct *cnext;
   struct  D2KThinkerStruct *cprev;
   unsigned int references;

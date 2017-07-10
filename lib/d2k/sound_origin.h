@@ -23,6 +23,8 @@
 #ifndef D2K_SOUND_ORIGIN_H__
 #define D2K_SOUND_ORIGIN_H__
 
+#include "d2k/thinker.h"
+
 typedef struct D2KSoundOriginStruct {
   D2KThinker    thinker;
   D2KFixedPoint x;

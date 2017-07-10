@@ -465,6 +465,8 @@ bool d2k_lump_directory_init(D2KLumpDirectory *lump_directory,
   for (size_t i = 0; i < lump_directory->lumps.len; i++) {
     D2KLump *lump = parray_index_fast(&lump_directory->lumps, i);
 
+    lump->index = i;
+
     if (!table_insert(&lump_directory->lookups[0], (void *)lump, status)) {
       parray_free(&lump_directory->lumps);
       table_free(&lump_directory->lookups[0]);
@@ -480,8 +482,6 @@ bool d2k_lump_directory_init(D2KLumpDirectory *lump_directory,
         return false;
       }
     }
-
-    lump->index = i;
   }
 
   return status_ok(status);

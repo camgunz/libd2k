@@ -20,32 +20,34 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_BLOCKMAP_H__
-#define D2K_BLOCKMAP_H__
+#ifndef D2K_MAP_OBJECT_INFO_H__
+#define D2K_MAP_OBJECT_INFO_H__
 
-struct D2KMapStruct;
-struct D2KLumpStruct;
-
-enum {
-  D2K_BLOCKMAP_NEGATIVE_WIDTH,
-  D2K_BLOCKMAP_NEGATIVE_HEIGHT,
-  D2K_BLOCKMAP_TRUNCATED_HEADER,
-  D2K_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
-  D2K_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
-};
-
-typedef struct D2KBlockmapStruct {
-  size_t        width;
-  size_t        height;
-  D2KFixedPoint origin_x;
-  D2KFixedPoint origin_y;
-  Array         blocks;
-} D2KBlockmap;
-
-bool d2k_blockmap_init_from_map(D2KBlockmap *bmap, struct D2KMapStruct *map,
-                                                   Status *status);
-bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, struct D2KLumpStruct *lump,
-                                                    Status *status);
+typedef struct D2KMapObjectInfoStruct {
+  int       doomednum;
+  int       spawn_state;
+  int       spawn_health;
+  int       see_state;
+  int       see_sound;
+  int       reaction_time;
+  int       attack_sound;
+  int       pain_state;
+  int       pain_chance;
+  int       pain_sound;
+  int       melee_state;
+  int       missile_state;
+  int       death_state;
+  int       xdeath_state;
+  int       death_sound;
+  int       speed;
+  int       radius;
+  int       height;
+  int       mass;
+  int       damage;
+  int       active_sound;
+  uint64_t  flags;
+  int       raise_state;
+} D2KMapObjectInfo;
 
 #endif
 
