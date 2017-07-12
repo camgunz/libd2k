@@ -207,21 +207,21 @@ IF(${BIGENDIAN})
   ADD_DEFINITIONS(-DWORDS_BIGENDIAN)
 ENDIF()
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/lib)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src)
 
 SET(LIBD2K_SOURCE_FILES
-  ${CMAKE_SOURCE_DIR}/lib/blockmap.c
-  ${CMAKE_SOURCE_DIR}/lib/angle.c
-  ${CMAKE_SOURCE_DIR}/lib/map.c
-  ${CMAKE_SOURCE_DIR}/lib/wad.c
+  ${CMAKE_SOURCE_DIR}/src/blockmap.c
+  ${CMAKE_SOURCE_DIR}/src/angle.c
+  ${CMAKE_SOURCE_DIR}/src/map.c
+  ${CMAKE_SOURCE_DIR}/src/wad.c
 )
 
 SET(INCLUDE_FILES
-  ${CMAKE_SOURCE_DIR}/lib/d2k.h
-  ${CMAKE_SOURCE_DIR}/lib/d2k/internal.h
-  ${CMAKE_SOURCE_DIR}/lib/d2k/blockmap.h
-  ${CMAKE_SOURCE_DIR}/lib/d2k/map.h
-  ${CMAKE_SOURCE_DIR}/lib/d2k/wad.h
+  ${CMAKE_SOURCE_DIR}/src/d2k.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/internal.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/blockmap.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/wad.h
 )
 
 SET(LIBD2K_LIBRARIES
@@ -280,7 +280,7 @@ INSTALL(
 )
 
 INSTALL(
-  FILES ${CMAKE_SOURCE_DIR}/lib/d2k.h
+  FILES ${CMAKE_SOURCE_DIR}/src/d2k.h
   DESTINATION ${INCLUDE_DIR}
 )
 
