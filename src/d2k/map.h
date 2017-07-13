@@ -55,7 +55,25 @@ enum {
   D2K_MAP_BLOCKMAP_TRUNCATED_HEADER,
   D2K_MAP_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
   D2K_MAP_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
+  D2K_MAP_MALFORMED_VERTEXES_LUMP,
+  D2K_MAP_MALFORMED_GL_VERT_LUMP,
 };
+
+typedef enum {
+  D2K_MAP_NODES_VERSION_VANILLA = 1,                  /* No marker */
+  D2K_MAP_NODES_VERSION_DEEP_BSP_4,                   /* xNd40000, NODES */
+  D2K_MAP_NODES_VERSION_ZDOOM,                        /* XNOD, NODES */
+  D2K_MAP_NODES_VERSION_ZDOOM_COMPRESSED,             /* ZNOD, NODES */
+  D2K_MAP_NODES_VERSION_ZDOOM_GL,                     /* XGLN, SSECTORS */
+  D2K_MAP_NODES_VERSION_ZDOOM_GL_COMPRESSED,          /* ZGLN, SSECTORS */
+  D2K_MAP_NODES_VERSION_ZDOOM_GL_EXTENDED,            /* XGL2, ZNODES (UDMF) */
+  D2K_MAP_NODES_VERSION_ZDOOM_GL_EXTENDED_COMPRESSED, /* ZGL2, ZNODES (UDMF) */
+  D2K_MAP_NODES_VERSION_GL_NODES_1,                   /* No marker */
+  D2K_MAP_NODES_VERSION_GL_NODES_2,                   /* gNd2, GL_NODES */
+  D2K_MAP_NODES_VERSION_GL_NODES_3,                   /* gNd3, GL_NODES */
+  D2K_MAP_NODES_VERSION_GL_NODES_4,                   /* gNd4, GL_NODES */
+  D2K_MAP_NODES_VERSION_GL_NODES_5,                   /* gNd5, GL_NODES */
+} D2KMapNodesVersion;
 
 typedef enum {
   D2K_LINEDEF_SLOPE_TYPE_HORIZONTAL,
@@ -223,15 +241,16 @@ typedef struct D2KBlockmapStruct {
 } D2KBlockmap;
 
 typedef struct D2KMapStruct {
-  Array       vertexes;
-  Array       segs;
-  Array       sectors;
-  Array       subsectors;
-  Array       nodes;
-  Array       lines;
-  Array       sides;
-  Array       sslines;
-  D2KBlockmap blockmap;
+  D2KMapNodesVersion nodes_version;
+  Array              vertexes;
+  Array              segs;
+  Array              sectors;
+  Array              subsectors;
+  Array              nodes;
+  Array              lines;
+  Array              sides;
+  Array              sslines;
+  D2KBlockmap        blockmap;
 } D2KMap;
 
 bool d2k_map_init(D2KMap *map, struct D2KLumpDirectoryStruct *lump_directory,
@@ -243,6 +262,22 @@ bool d2k_blockmap_init_from_map(D2KBlockmap *bmap, D2KMap *map,
                                                    Status *status);
 bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, struct D2KLumpStruct *lump,
                                                     Status *status);
+
+static inline bool d2k_map_has_gl_nodes(D2KMap *map) {
+  switch (map->nodes_version) {
+    case D2K_MAP_NODES_VERSION_GL_NODES_1:
+    case D2K_MAP_NODES_VERSION_GL_NODES_2:
+    case D2K_MAP_NODES_VERSION_GL_NODES_3:
+    case D2K_MAP_NODES_VERSION_GL_NODES_4:
+    case D2K_MAP_NODES_VERSION_GL_NODES_5:
+      return true;
+    default:
+      break;
+  }
+
+  return false;
+}
+
 #endif
 
 /* vi: set et ts=2 sw=2: */

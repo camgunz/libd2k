@@ -150,20 +150,19 @@
   "map has truncated SSECTORS lump" \
 )
 
-typedef enum {
-  D2K_MAP_NODES_VERSION_VANILLA = 1,                  /* No marker */
-  D2K_MAP_NODES_VERSION_DEEP_BSP_4,                   /* xNd40000, NODES */
-  D2K_MAP_NODES_VERSION_ZDOOM,                        /* XNOD, NODES */
-  D2K_MAP_NODES_VERSION_ZDOOM_COMPRESSED,             /* ZNOD, NODES */
-  D2K_MAP_NODES_VERSION_ZDOOM_GL,                     /* XGLN, SSECTORS */
-  D2K_MAP_NODES_VERSION_ZDOOM_GL_COMPRESSED,          /* ZGLN, SSECTORS */
-  D2K_MAP_NODES_VERSION_ZDOOM_GL_EXTENDED,            /* XGL2, ZNODES (UDMF) */
-  D2K_MAP_NODES_VERSION_ZDOOM_GL_EXTENDED_COMPRESSED, /* ZGL2, ZNODES (UDMF) */
-  D2K_MAP_NODES_VERSION_GL_NODES_2,                   /* gNd2, GL_NODES */
-  D2K_MAP_NODES_VERSION_GL_NODES_3,                   /* gNd3, GL_NODES */
-  D2K_MAP_NODES_VERSION_GL_NODES_4,                   /* gNd4, GL_NODES */
-  D2K_MAP_NODES_VERSION_GL_NODES_5,                   /* gNd5, GL_NODES */
-} D2KMapNodesVersion;
+#define malformed_vertexes_lump(status) status_error( \
+  status, \
+  "d2k_map", \
+  D2K_MAP_MALFORMED_VERTEXES_LUMP, \
+  "map has malformed VERTEXES lump" \
+)
+
+#define malformed_gl_vert_lump(status) status_error( \
+  status, \
+  "d2k_map", \
+  D2K_MAP_MALFORMED_GL_VERT_LUMP, \
+  "map has malformed GL_VERT lump" \
+)
 
 #define D2K_MAP_LUMP_OFFSET_MIN D2K_MAP_LUMP_OFFSET_THINGS
 #define D2K_MAP_LUMP_OFFSET_MAX D2K_MAP_LUMP_OFFSET_BEHAVIOR
@@ -481,10 +480,112 @@ static bool get_nodes_version(D2KLumpDirectory *lump_directory,
 static bool map_load_vertexes2(D2KMap *map, D2KLump *vertexes_lump,
                                             D2KLump *gl_vert_lump,
                                             Status *status) {
-  (void)map;
-  (void)vertexes_lump;
-  (void)gl_vert_lump;
-  (void)status;
+  bool using_gl_verts_2 = false;
+  size_t vertex_count;
+
+  switch (map->nodes_version) {
+    case D2K_MAP_NODES_VERSION_GL_NODES_2:
+    case D2K_MAP_NODES_VERSION_GL_NODES_3:
+    case D2K_MAP_NODES_VERSION_GL_NODES_4:
+    case D2K_MAP_NODES_VERSION_GL_NODES_5:
+      using_gl_verts_2 = true;
+      break;
+    default:
+      break;
+  }
+
+  vertex_count = vertexes_lump->data.len / 4;
+  if ((vertexes_lump->data.len % 4) != 0) {
+    return malformed_vertexes_lump(status);
+  }
+
+  if (!array_ensure_capacity(&map->vertexes, vertex_count, status)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < vertex_count; i++) {
+    D2KFixedVertex *v = array_append_fast(&map->vertexes);
+    int16_t xy[2] = {0, 0};
+
+    if (!slice_read(&vertexes_lump->data, i * 4, 4, (void *)&xy[0], status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_vertexes_lump(status);
+      }
+
+      return false;
+    }
+
+    v->x = d2k_int_to_fixed_point(cble16(xy[0]));
+    v->y = d2k_int_to_fixed_point(cble16(xy[1]));
+  }
+
+  if (gl_vert_lump) {
+    if (using_gl_verts_2) {
+      vertex_count = (gl_vert_lump->data.len - 4) /
+                     (sizeof(D2KFixedPoint) * 2);
+
+      if (((gl_vert_lump->data.len - 4) % (sizeof(D2KFixedPoint) * 2)) != 0) {
+        return malformed_gl_vert_lump(status);
+      }
+
+      if (!array_ensure_capacity(&map->vertexes,
+                                 map->vertexes.len + vertex_count,
+                                 status)) {
+        return false;
+      }
+
+      for (size_t i = 0; i < vertex_count; i++) {
+        D2KFixedVertex *v = array_append_fast(&map->vertexes);
+        D2KFixedPoint xy[2] = {0, 0};
+
+        if (!slice_read(&gl_vert_lump->data,
+                        4 + (i * (sizeof(D2KFixedPoint) * 2)),
+                        sizeof(D2KFixedPoint) * 2,
+                        (void *)&xy[0],
+                        status)) {
+          if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+            return malformed_gl_vert_lump(status);
+          }
+
+          return false;
+        }
+
+        v->x = cble32(xy[0]);
+        v->y = cble32(xy[1]);
+      }
+    }
+    else {
+      vertex_count = gl_vert_lump->data.len / 4;
+
+      if ((gl_vert_lump->data.len % 4) != 0) {
+        return malformed_gl_vert_lump(status);
+      }
+
+      if (!array_ensure_capacity(&map->vertexes,
+                                 map->vertexes.len + vertex_count,
+                                 status)) {
+        return false;
+      }
+
+      for (size_t i = 0; i < vertex_count; i++) {
+        D2KFixedVertex *v = array_append_fast(&map->vertexes);
+        int16_t xy[2] = {0, 0};
+
+        if (!slice_read(&gl_vert_lump->data, i * 4, 4, (void *)&xy[0],
+                                                       status)) {
+          if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+            return malformed_gl_vert_lump(status);
+          }
+
+          return false;
+        }
+
+        v->x = d2k_int_to_fixed_point(cble16(xy[0]));
+        v->y = d2k_int_to_fixed_point(cble16(xy[1]));
+      }
+    }
+  }
+    
   return status_ok(status);
 }
 
@@ -556,9 +657,10 @@ bool d2k_map_init(D2KMap *map, D2KLumpDirectory *lump_directory,
   D2KLump *gl_segs_lump = NULL;
   D2KLump *gl_ssect_lump = NULL;
   D2KLump *gl_nodes_lump = NULL;
-  D2KMapNodesVersion nodes_version = D2K_MAP_NODES_VERSION_VANILLA;
   size_t map_index = 0;
   size_t gl_map_index = 0;
+
+  map->nodes_version = D2K_MAP_NODES_VERSION_VANILLA;
 
   if (!d2k_lump_directory_lookup(lump_directory, map_name, &map_marker_lump,
                                                            status)) {
@@ -737,8 +839,9 @@ bool d2k_map_init(D2KMap *map, D2KLumpDirectory *lump_directory,
     }
   }
 
-  if (!get_nodes_version(lump_directory, map_name, gl_map_name, &nodes_version,
-                                                                status)) {
+  if (!get_nodes_version(lump_directory, map_name, gl_map_name,
+                                                   &map->nodes_version,
+                                                   status)) {
     return false;
   }
 
@@ -751,10 +854,7 @@ bool d2k_map_init(D2KMap *map, D2KLumpDirectory *lump_directory,
   array_init(&map->sides, sizeof(D2KSidedef));
   array_init(&map->sslines, sizeof(D2KSegLine));
 
-  if ((nodes_version == D2K_MAP_NODES_VERSION_GL_NODES_2) ||
-      (nodes_version == D2K_MAP_NODES_VERSION_GL_NODES_3) ||
-      (nodes_version == D2K_MAP_NODES_VERSION_GL_NODES_4) ||
-      (nodes_version == D2K_MAP_NODES_VERSION_GL_NODES_5)) {
+  if (d2k_map_has_gl_nodes(map)) {
     if (!map_load_vertexes2(map, vertexes_lump, gl_vert_lump, status)) {
       return false;
     }
