@@ -591,9 +591,32 @@ static bool map_load_vertexes2(D2KMap *map, D2KLump *vertexes_lump,
 
 static bool map_load_vertexes(D2KMap *map, D2KLump *vertexes_lump,
                                            Status *status) {
-  (void)map;
-  (void)vertexes_lump;
-  (void)status;
+  size_t vertex_count = vertexes_lump->data.len / 4;
+
+  if ((vertexes_lump->data.len % 4) != 0) {
+    return malformed_vertexes_lump(status);
+  }
+
+  if (!array_ensure_capacity(&map->vertexes, vertex_count, status)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < vertex_count; i++) {
+    D2KFixedVertex *v = array_append_fast(&map->vertexes);
+    int16_t xy[2] = {0, 0};
+
+    if (!slice_read(&vertexes_lump->data, i * 4, 4, (void *)&xy[0], status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_vertexes_lump(status);
+      }
+
+      return false;
+    }
+
+    v->x = d2k_int_to_fixed_point(cble16(xy[0]));
+    v->y = d2k_int_to_fixed_point(cble16(xy[1]));
+  }
+
   return status_ok(status);
 }
 
