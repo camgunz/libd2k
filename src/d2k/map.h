@@ -142,8 +142,8 @@ typedef struct D2KSectorStruct {
   D2KFixedPoint                   ceiling_y_offset;
   int                             floor_light_sector;
   int                             ceiling_light_sector;
-  short                           floor_pic;
-  short                           ceiling_pic;
+  size_t                          floor_pic;
+  size_t                          ceiling_pic;
   short                           light_level;
   short                           special;
   short                           old_special;

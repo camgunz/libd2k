@@ -167,6 +167,39 @@
 #define D2K_MAP_LUMP_OFFSET_MIN D2K_MAP_LUMP_OFFSET_THINGS
 #define D2K_MAP_LUMP_OFFSET_MAX D2K_MAP_LUMP_OFFSET_BEHAVIOR
 
+/*
+ * It's not always possible to perform robustly and verbosely.  For example, if
+ * a sector references a non-existent flat, what you generally want to do is
+ * give the caller information about which sector it is and which flat is
+ * missing, but continue on.
+ *
+ * You can't really do that though.  You can't dynamically create status error
+ * messages, you can't return a list of errors, and you shouldn't return an
+ * array of sectors some of which might be malformed.
+ *
+ * This problem exists other places too.  I think the solution is some kind of
+ * set of verification sweeps, so a robust application can kind of plug holes.
+ *
+ * I'm envisioning something like D2KMapProblem:
+ *
+ * typedef struct D2KInvalidSectorFlatReferenceStruct {
+ *   char map_name[6];
+ *   size_t sector_index;
+ *   char flat_name[9];
+ * } D2KInvalidSectorFlatReference;
+ *
+ * typedef struct D2KMapProblemStruct {
+ *   D2KMapProblemType type;
+ *   union {
+ *     D2KInvalidSectorFlatReference invalid_sector_flat_reference;
+ *   } as;
+ * } D2KMapProblem;
+ *
+ * This way the map loading functions can confidently bail on errors, because
+ * an application desiring to be robust in the face of errors would have run
+ * the verification sweep and fixed any problems beforehand.
+ */
+
 typedef enum {
   D2K_MAP_LUMP_OFFSET_THINGS = 1,
   D2K_MAP_LUMP_OFFSET_LINEDEFS,
@@ -477,9 +510,9 @@ static bool get_nodes_version(D2KLumpDirectory *lump_directory,
   return status_ok(status);
 }
 
-static bool map_load_vertexes2(D2KMap *map, D2KLump *vertexes_lump,
-                                            D2KLump *gl_vert_lump,
-                                            Status *status) {
+static bool map_load_vertexes(D2KMap *map, D2KLump *vertexes_lump,
+                                           D2KLump *gl_vert_lump,
+                                           Status *status) {
   bool using_gl_verts_2 = false;
   size_t vertex_count;
 
@@ -585,7 +618,7 @@ static bool map_load_vertexes2(D2KMap *map, D2KLump *vertexes_lump,
       }
     }
   }
-    
+
   return status_ok(status);
 }
 
@@ -622,9 +655,113 @@ static bool map_load_vertexes(D2KMap *map, D2KLump *vertexes_lump,
 
 static bool map_load_sectors(D2KMap *map, D2KLump *sectors_lump,
                                           Status *status) {
-  (void)map;
-  (void)sectors_lump;
-  (void)status;
+  size_t sector_count = sectors_lump->data.len / 26;
+  int16_t floor_height;
+  int16_t ceiling_height;
+  char floor_pic[9] = { 0 };
+  char ceiling_pic[9] = { 0 };
+  int16_t light_level;
+  int16_t special;
+  int16_t tag;
+
+  if ((sectors_lump->data.len % 26) != 0) {
+    return malformed_sectors_lump(status);
+  }
+
+  if (!array_ensure_capacity(&map->sectors, sector_count, status)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < sector_count; i++) {
+    D2KSector *sector = array_append_fast(&map->sectors);
+
+    sector->id = i;
+
+    if (!slice_read(&sectors_lump->data, i * 26,
+                                         sizeof(floor_height),
+                                         (void *)&floor_height,
+                                         status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_sectors_lump(status);
+      }
+    }
+
+    if (!slice_read(&sectors_lump->data, (i * 26) + 2
+                                         sizeof(ceiling_height),
+                                         (void *)&ceiling_height,
+                                         status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_sectors_lump(status);
+      }
+    }
+
+    if (!slice_read(&sectors_lump->data, (i * 26) + 4,
+                                         sizeof(floor_pic) - 1,
+                                         (void *)&floor_pic,
+                                         status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_sectors_lump(status);
+      }
+    }
+
+    if (!slice_read(&sectors_lump->data, (i * 26) + 12,
+                                         sizeof(ceiling_pic) - 1,
+                                         (void *)&ceiling_pic,
+                                         status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_sectors_lump(status);
+      }
+    }
+
+    if (!slice_read(&sectors_lump->data, (i * 26) + 20,
+                                         sizeof(light_level),
+                                         (void *)&light_level,
+                                         status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_sectors_lump(status);
+      }
+    }
+
+    if (!slice_read(&sectors_lump->data, (i * 26) + 22,
+                                         sizeof(special),
+                                         (void *)&special,
+                                         status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_sectors_lump(status);
+      }
+    }
+
+    if (!slice_read(&sectors_lump->data, (i * 26) + 24,
+                                         sizeof(old_special),
+                                         (void *)&old_special,
+                                         status)) {
+      if (status_match(status, "base", ERROR_OUT_OF_BOUNDS)) {
+        return malformed_sectors_lump(status);
+      }
+    }
+
+    sectors->floor_height = d2k_int_to_fixed(cble16(floor_height));
+    sectors->ceiling_height = d2k_int_to_fixed(cble16(ceiling_height));
+
+    if (!d2k_lump_directory_lookup_ns(lump_directory, &floor_pic[0],
+                                                      D2K_LUMP_NAMESPACE_FLATS,
+                                                      &flat_lump,
+                                                      status)) {
+      return false;
+    }
+
+    sectors->floor_pic = flat_lump->index;
+
+    if (!d2k_lump_directory_lookup_ns(lump_directory, &ceiling_pic[0],
+                                                      D2K_LUMP_NAMESPACE_FLATS,
+                                                      &flat_lump,
+                                                      status)) {
+      return false;
+    }
+
+    sectors->ceiling_pic = flat_lump->index;
+  }
+
   return status_ok(status);
 }
 
@@ -877,15 +1014,8 @@ bool d2k_map_init(D2KMap *map, D2KLumpDirectory *lump_directory,
   array_init(&map->sides, sizeof(D2KSidedef));
   array_init(&map->sslines, sizeof(D2KSegLine));
 
-  if (d2k_map_has_gl_nodes(map)) {
-    if (!map_load_vertexes2(map, vertexes_lump, gl_vert_lump, status)) {
-      return false;
-    }
-  }
-  else {
-    if (!map_load_vertexes(map, vertexes_lump, status)) {
-      return false;
-    }
+  if (!map_load_vertexes(map, vertexes_lump, gl_verts_lump, status)) {
+    return false;
   }
 
   if (!map_load_sectors(map, sectors_lump, status)) {
