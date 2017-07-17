@@ -82,6 +82,9 @@
     "ZDoom extended compressed GL UDMF nodes not implemented"              \
   )
 
+#define VANILLA_SEG_SIZE 12
+#define VANILLA_SUBSECTOR_SIZE 4
+
 typedef struct D2KMapNodeVersionHeaderInfoStruct {
   D2KMapLump         lump;
   const char        *version_header;
@@ -113,93 +116,48 @@ static inline bool lump_starts_with(D2KLump *lump,
   return slice_equals_data_at(&lump->data, 0, data, len, starts_with, status);
 }
 
-bool d2k_map_loader_detect_nodes_version(D2KMapLoader *map_loader,
-                                         Status *status) {
-  bool               node_type_found[D2K_MAP_NODES_VERSION_MAX] = { 0 };
-  size_t             node_types_found = 0;
-  D2KMapNodesVersion nodes_version;
-
-
-  for (size_t i = 0; i < D2K_MAP_NODES_VERSION_MAX; i++) {
-    D2KLump *lump = NULL;
-    D2KMapNodeVersionHeaderInfo &info = &d2k_map_node_version_headers[i];
-
-    if (!info->version_header_size) {
-      continue;
-    }
-
-    switch (info->lump) {
-      case D2K_MAP_LUMP_NODES:
-      case D2K_MAP_LUMP_SSECTORS:
-        if (!slice_equals_data_at(&map_loader->map_lumps[info->lump]->data,
-                                  0,
-                                  info->version_header,
-                                  info->version_header_length,
-                                  &node_type_found[i],
-                                  status)) {
-          return false;
-        }
-        break;
-      case D2K_MAP_LUMP_GL_VERT:
-      case D2K_MAP_LUMP_GL_SEGS:
-        if (!slice_equals_data_at(&map_loader->gl_map_lumps[info->lump]->data,
-                                  0,
-                                  info->version_header,
-                                  info->version_header_length,
-                                  &node_type_found[i],
-                                  status)) {
-          return false;
-        }
-        break;
-      case D2K_MAP_LUMP_ZNODES:
-        break; /* [TODO] UDMF */
-      default:
-        return unsupported_map_node_version_info_lump_location(status);
-    }
-  }
-
-  for (size_t i = 0; i < D2K_MAP_NODES_VERSION_MAX; i++) {
-    if (node_type_found[i]) {
-      nodes_version = i;
-      node_types_found++;
-    }
-  }
-
-  if (node_types_found == 0) {
-    if (d2k_map_loader_has_gl_lumps(map_loader)) {
-      map_loader->nodes_version = D2K_MAP_NODES_VERSION_GL_NODES_1;
-    }
-    else {
-      map_loader->nodes_version = D2K_MAP_NODES_VERSION_VANILLA;
-    }
-  }
-  else if (node_types_found > 1) {
-    if (node_types_found == 2 &&
-        node_type_found[D2K_MAP_NODES_VERSION_GL_NODES_2] &&
-        node_type_found[D2K_MAP_NODES_VERSION_GL_NODES_3]) {
-      map_loader->nodes_version = D2K_MAP_NODES_VERSION_GL_NODES_3;
-    }
-    else {
-      return multiple_map_node_types_found(status);
-    }
-  }
-  else {
-    map_loader->nodes_version = nodes_version;
-  }
-
-  return status_ok(status);
-}
-
 static bool load_subsectors(D2KMapLoader *map_loader, Status *status) {
+  int  i;
+  D2KLump *subsectors_lump = map_loader->map_lumps[D2K_MAP_LUMP_SSECT];
+  size_t subsectors_count = subsectors_lump->data.len / VANILLA_SUBSECTOR_SIZE;
+
+  if ((subsectors_lump->data.len % VANILLA_SUBSECTOR_SIZE) != 0) {
+    return malformed_subsectors_lump(status);
+  }
+
+  if (!array_ensure_capacity(&map_loader->map->subsectors, subsector_count,
+                                                           status)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < subsector_count; i++) {
+    D2KSubsector *subsector = array_append_fast(
+      &map_loader->map->subsectors
+    );
+    char subsector_data[VANILLA_SUBSECTOR_SIZE];
+    size_t seg_count;
+    size_t first_seg;
+
+    slice_read_fast(&subsectors_lump->data, i * VANILLA_SUBSECTOR_SIZE,
+                                            VANILLA_SUBSECTOR_SIZE,
+                                            (void *)subsector_data);
+
+    seg_count = (size_t)cble16((subsector_data[0] << 8) | (subsector_data[1]));
+    first_seg = (size_t)cble16((subsector_data[0] << 8) | (subsector_data[1]));
+
+    if ((first_seg + seg_count) > map_loader->map->segs.len) {
+      return out_of_range_subsector_seg_list(status);
+    }
+
+    subsector->seg_count = seg_count;
+    subsector->first_seg = first_seg;
+  }
 }
 
 static bool load_nodes(D2KMapLoader *map_loader, Status *status) {
 }
 
-#define VANILLA_SEG_SIZE 12
-
 static bool load_segs(D2KMapLoader *map_loader, Status *status) {
-  int  i;
   D2KLump *segs_lump = map_loader->map_lumps[D2K_MAP_LUMP_SEGS];
   size_t seg_count = segs_lump->data.len / VANILLA_SEG_SIZE;
 
@@ -389,6 +347,83 @@ static bool load_zdoom_nodes(D2KMapLoader *map_loader, Status *status) {
 }
 
 static bool load_zdoom_segs(D2KMapLoader *map_loader, Status *status) {
+}
+
+bool d2k_map_loader_detect_nodes_version(D2KMapLoader *map_loader,
+                                         Status *status) {
+  bool               node_type_found[D2K_MAP_NODES_VERSION_MAX] = { 0 };
+  size_t             node_types_found = 0;
+  D2KMapNodesVersion nodes_version;
+
+
+  for (size_t i = 0; i < D2K_MAP_NODES_VERSION_MAX; i++) {
+    D2KLump *lump = NULL;
+    D2KMapNodeVersionHeaderInfo &info = &d2k_map_node_version_headers[i];
+
+    if (!info->version_header_size) {
+      continue;
+    }
+
+    switch (info->lump) {
+      case D2K_MAP_LUMP_NODES:
+      case D2K_MAP_LUMP_SSECTORS:
+        if (!slice_equals_data_at(&map_loader->map_lumps[info->lump]->data,
+                                  0,
+                                  info->version_header,
+                                  info->version_header_length,
+                                  &node_type_found[i],
+                                  status)) {
+          return false;
+        }
+        break;
+      case D2K_MAP_LUMP_GL_VERT:
+      case D2K_MAP_LUMP_GL_SEGS:
+        if (!slice_equals_data_at(&map_loader->gl_map_lumps[info->lump]->data,
+                                  0,
+                                  info->version_header,
+                                  info->version_header_length,
+                                  &node_type_found[i],
+                                  status)) {
+          return false;
+        }
+        break;
+      case D2K_MAP_LUMP_ZNODES:
+        break; /* [TODO] UDMF */
+      default:
+        return unsupported_map_node_version_info_lump_location(status);
+    }
+  }
+
+  for (size_t i = 0; i < D2K_MAP_NODES_VERSION_MAX; i++) {
+    if (node_type_found[i]) {
+      nodes_version = i;
+      node_types_found++;
+    }
+  }
+
+  if (node_types_found == 0) {
+    if (d2k_map_loader_has_gl_lumps(map_loader)) {
+      map_loader->nodes_version = D2K_MAP_NODES_VERSION_GL_NODES_1;
+    }
+    else {
+      map_loader->nodes_version = D2K_MAP_NODES_VERSION_VANILLA;
+    }
+  }
+  else if (node_types_found > 1) {
+    if (node_types_found == 2 &&
+        node_type_found[D2K_MAP_NODES_VERSION_GL_NODES_2] &&
+        node_type_found[D2K_MAP_NODES_VERSION_GL_NODES_3]) {
+      map_loader->nodes_version = D2K_MAP_NODES_VERSION_GL_NODES_3;
+    }
+    else {
+      return multiple_map_node_types_found(status);
+    }
+  }
+  else {
+    map_loader->nodes_version = nodes_version;
+  }
+
+  return status_ok(status);
 }
 
 bool d2k_map_loader_load_nodes(D2KMapLoader *map_loader, Status *status) {

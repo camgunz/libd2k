@@ -164,11 +164,11 @@ typedef struct D2KMapSectorNodeStruct {
   bool                           visited;
 } D2KMapSectorNode;
 
-typedef struct D2KSubSectorStruct {
+typedef struct D2KSubsectorStruct {
   D2KSector *sector;
-  int        line_count;
-  size_t     first_line;
-} D2KSubSector;
+  size_t     seg_count;
+  size_t     first_seg;
+} D2KSubsector;
 
 typedef struct D2KSegStruct {
   D2KFixedVertex *v1;
