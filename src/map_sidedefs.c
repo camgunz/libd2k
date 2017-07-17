@@ -1,0 +1,104 @@
+/*****************************************************************************/
+/* D2K: A Doom Source Port for the 21st Century                              */
+/*                                                                           */
+/* Copyright (C) 2014: See COPYRIGHT file                                    */
+/*                                                                           */
+/* This file is part of D2K.                                                 */
+/*                                                                           */
+/* D2K is free software: you can redistribute it and/or modify it under the  */
+/* terms of the GNU General Public License as published by the Free Software */
+/* Foundation, either version 2 of the License, or (at your option) any      */
+/* later version.                                                            */
+/*                                                                           */
+/* D2K is distributed in the hope that it will be useful, but WITHOUT ANY    */
+/* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS */
+/* FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more    */
+/* details.                                                                  */
+/*                                                                           */
+/* You should have received a copy of the GNU General Public License along   */
+/* with D2K.  If not, see <http://www.gnu.org/licenses/>.                    */
+/*                                                                           */
+/*****************************************************************************/
+
+#include "d2k/internal.h"
+#include "d2k/wad.h"
+
+#define SIDEDEF_SIZE 30
+
+bool d2k_map_loader_load_sidedefs(D2KMapLoader *map_loader, Status *status) {
+  D2KLump *sidedefs_lump = map_loader->map_lumps[D2K_MAP_LUMP_SIDEDEFS];
+  size_t sidedef_count = sidedefs_lump->data.len / SIDEDEF_SIZE;
+
+  if ((sidedefs_lump->data.len % SIDEDEF_SIZE) != 0) {
+    return malformed_sidedefs_lump(status);
+  }
+
+  if (!array_ensure_capacity(&map->sidedefs, sidedef_count, status)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < sidedef_count; i++) {
+    D2KSidedef *sidedef = array_append_fast(&map->sidedefs);
+    D2KTexture *texture = NULL;
+    char top_texture[9];
+    char bottom_texture[9];
+    char mid_texture[9];
+    char sidedef_data[SIDEDEF_SIZE];
+    size_t sector_index;
+
+    slice_read_fast(&sidedefs_lump->data, i * SIDEDEF_SIZE,
+                                          SIDEDEF_SIZE,
+                                          (void *)sidedef_data);
+
+    sidedef->texture_offset = d2k_int_to_fixed(cble16((sidedef_data[0] << 8) |
+                                                      (sidedef_data[1])));
+
+    sidedef->row_offset = d2k_int_to_fixed(cble16((sidedef_data[2] << 8) |
+                                                  (sidedef_data[3])));
+
+    cbmemmove((void *)top_texture, sidedef_data[4], 8);
+
+    cbmemmove((void *)bottom_texture, sidedef_data[12], 8);
+
+    cbmemmove((void *)mid_texture, sidedef_data[20], 8);
+
+    sector_index = (size_t)cble16((sidedef_data[28] << 8) | sidedef_data[29]);
+
+    if (sector_index >= map_loader->map->sectors.len) {
+      return invalid_sidedef_sector_index(status);
+    }
+
+    sidedef->sector = array_index_fast(
+      &map_loader->map->sectors,
+      sector_index
+    );
+
+    if (!d2k_lump_directory_lookup_texture(lump_directory, top_texture,
+                                                           &texture,
+                                                           status)) {
+      return false;
+    }
+
+    sidedef->top_texture = top_texture->index;
+
+    if (!d2k_lump_directory_lookup_texture(lump_directory, bottom_texture,
+                                                           &texture,
+                                                           status)) {
+      return false;
+    }
+
+    sidedef->bottom_texture = bottom_texture->index;
+
+    if (!d2k_lump_directory_lookup_texture(lump_directory, mid_texture,
+                                                           &texture,
+                                                           status)) {
+      return false;
+    }
+
+    sidedef->mid_texture = mid_texture->index;
+  }
+
+  return status_ok(status);
+}
+
+/* vi: set et ts=2 sw=2: */

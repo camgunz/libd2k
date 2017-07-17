@@ -54,21 +54,50 @@ static inline D2KFixedPoint d2k_int_to_fixed_point(int32_t i) {
   return i << FRACBITS;
 }
 
+static inline float d2k_fixed_point_to_float(D2KFixedPoint fp) {
+  return (float)(fp / FRACUNIT);
+}
+
+static inline D2KFixedPoint d2k_float_to_fixed_point(float f) {
+  /*
+   * Same deal here.  Overflowing a float yields `+INF`, and casting that to
+   * `int` is undefined.  I'm actually not entirely sure what the engine
+   * expects in this case, and there's no compiler flags I can find that define
+   * this behavior.  From a small survey of the state-of-the-art ports, this
+   * problem isn't handled.  So I'm trying a clamp controlled by an #ifdef.
+   */
+  float res = f * ((float)FRACUNIT);
+
+#if D2K_CLAMP_FLOAT_TO_FIXED_INF
+  if (!isfinite(res)) {
+    return (D2KFixedPoint)0xFFFFFFFF;
+  }
+#endif
+
+  return (D2KFixedPoint)res;
+}
+
 static inline D2KFixedPoint d2k_fixed_mul(D2KFixedPoint a, D2KFixedPoint b) {
   return (D2KFixedPoint)((int64_t) a * b >> FRACBITS);
 }
 
 static inline D2KFixedPoint d2k_fixed_div(D2KFixedPoint a, D2KFixedPoint b) {
-  return (abs(a) >> 14) >= abs(b) ? ((a ^ b) >> 31) ^ INT_MAX :
-    (D2KFixedPoint)(((int64_t) a << FRACBITS) / b
-  );
+  if ((abs(a) >> 14) >= abs(b)) {
+    return ((a ^ b) >> 31) ^ INT_MAX;
+  }
+
+  return (D2KFixedPoint)((int64_t) a << FRACBITS) / b;
 }
 
 static inline D2KFixedPoint d2k_fixed_mod(D2KFixedPoint a, D2KFixedPoint b) {
   if (b & (b - 1)) {
     D2KFixedPoint r = a % b;
 
-    return ((r < 0) ? r + b : r);
+    if (r < 0) {
+      return r + b;
+    }
+
+    return r;
   }
 
   return (a & (b - 1));

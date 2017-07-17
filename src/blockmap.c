@@ -24,11 +24,12 @@
 #include "d2k/map.h"
 #include "d2k/wad.h"
 
-/* places to shift rel position for cell num */
-#define BLKSHIFT 7
-
-/* mask for rel position within cell */
-#define BLKMASK ((1 << BLKSHIFT) - 1)
+#define map_missing_blockmap_lump(status) status_error( \
+  status,                                               \
+  "d2k_map",                                            \
+  D2K_MAP_MISSING_BLOCKMAP_LUMP,                        \
+  "map missing BLOCKMAP lump"                           \
+)
 
 #define negative_blockmap_width(status) status_error( \
   status,                                             \
@@ -65,10 +66,15 @@
   "invalid offset in line list directory"                          \
 )
 
-static inline bool add_block_line(D2KBlockmap *bmap, Array *done,
-                                                     size_t block_index,
-                                                     size_t line_index,
-                                                     Status *status) {
+/* places to shift rel position for cell num */
+#define BLKSHIFT 7
+
+/* mask for rel position within cell */
+#define BLKMASK ((1 << BLKSHIFT) - 1)
+
+static inline bool add_line(D2KBlockmap *bmap, Array *done, size_t block_index,
+                                                            size_t line_index,
+                                                            Status *status) {
   bool *skip = array_index_fast(done, block_index);
 
   if (!(*skip)) {
@@ -84,17 +90,33 @@ static inline bool add_block_line(D2KBlockmap *bmap, Array *done,
   return status_ok(status);
 }
 
-bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
+static inline void cleanup_blockmap(D2KBlockmap *blockmap, Array *done) {
+  for (size_t i = 0; i < blockmap->blocks.len; i--) {
+    array_free(array_index_fast(&blockmap->blocks, i));
+  }
+
+  array_free(&blockmap->blocks);
+  array_free(done);
+}
+
+  d2k_blockmap_build
+}
+
+bool d2k_blockmap_build(D2KBlockmap *bmap, Array *vertexes, Array *linedefs,
+                                                            Status *status) {
   int xorg;
   int yorg;
   int map_minx = INT_MAX;
   int map_miny = INT_MAX;
   int map_maxx = INT_MIN;
   int map_maxy = INT_MIN;
+  D2KMap *map = map_loader->map;
+  D2KBlockmap *bmap = &map->blockmap;
   Array done;
+  size_t width;
 
-  for (size_t i = 0; i < map->vertexes.len; i++) {
-    D2KFixedVertex *v = array_index_fast(&map->vertexes, i);
+  for (size_t i = 0; i < vertexes->len; i++) {
+    D2KFixedVertex *v = array_index_fast(vertexes, i);
 
     if (v->x < map_minx) {
       map_minx = v->x;
@@ -125,9 +147,12 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
   bmap->width  = (map_maxx - xorg + 1 + BLKMASK) >> BLKSHIFT;
   bmap->height = (map_maxy - yorg + 1 + BLKMASK) >> BLKSHIFT;
 
-  /* [CG] No need to check for overflow here because of the right shift */
-
   array_init(&bmap->blocks, sizeof(Array));
+
+  /*
+   * No need to check for overflow on `bmap->width * bmap-height` because the
+   * right shift makes it impossible.
+   */
 
   if (!array_set_size(&bmap->blocks, bmap->width * bmap->height, status)) {
     array_free(&bmap->blocks);
@@ -148,10 +173,12 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
     array_init(line_list, sizeof(size_t));
   }
 
+  width = bmap->width;
+
   // For each linedef in the wad, determine all blockmap blocks it touches,
   // and add the linedef number to the blocklists for those blocks
-  for (size_t i = 0; i < map->lines.len; i++) {
-    D2KLinedef *line = array_index_fast(&map->lines, i);
+  for (size_t i = 0; i < linedefs->len; i++) {
+    D2KLinedef *line = array_index_fast(linedefs, i);
     int x1 = line->v1->x >> FRACBITS;
     int y1 = line->v1->y >> FRACBITS;
     int x2 = line->v2->x >> FRACBITS;
@@ -170,12 +197,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
     int maxy = y1 > y2 ? y1 : y2;
 
     if (!array_zero_elements(&done, 0, done.len, status)) {
-      for (size_t k = 0; k < bmap->blocks.len; k--) {
-        array_free(array_index_fast(&bmap->blocks, k));
-      }
-
-      array_free(&bmap->blocks);
-      array_free(&done);
+      cleanup_blockmap(bmap, &done);
       return false;
     }
 
@@ -184,26 +206,16 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
     bx = (x1 - xorg) >> BLKSHIFT;
     by = (y1 - yorg) >> BLKSHIFT;
 
-    if (!add_block_line(bmap, &done, by * bmap->width + bx, i, status)) {
-      for (size_t k = 0; k < bmap->blocks.len; k--) {
-        array_free(array_index_fast(&bmap->blocks, k));
-      }
-
-      array_free(&bmap->blocks);
-      array_free(&done);
+    if (!add_line(bmap, &done, by * width + bx, i, status)) {
+      cleanup_blockmap(bmap, &done);
       return false;
     }
 
     bx = (x2 - xorg) >> BLKSHIFT;
     by = (y2 - yorg) >> BLKSHIFT;
 
-    if (!add_block_line(bmap, &done, by * bmap->width + bx, i, status)) {
-      for (size_t k = 0; k < bmap->blocks.len; k--) {
-        array_free(array_index_fast(&bmap->blocks, k));
-      }
-
-      array_free(&bmap->blocks);
-      array_free(&done);
+    if (!add_line(bmap, &done, by * width + bx, i, status)) {
+      cleanup_blockmap(bmap, &done);
       return false;
     }
 
@@ -212,7 +224,7 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
     // blocklist.
 
     if (!vert) { // don't interesect vertical lines with columns
-      for (size_t j = 0; j < bmap->width; j++) {
+      for (size_t j = 0; j < width; j++) {
         // intersection of Linedef with x = xorg + (j << BLKSHIFT)
         // (y - y1)  dx = dy * (x - x1)
         // y = dy * (x - x1) + y1 * dx;
@@ -231,13 +243,8 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
         }
 
         // The cell that contains the intersection point is always added
-        if (!add_block_line(bmap, &done, bmap->width * yb + j, i, status)) {
-          for (size_t k = 0; k < bmap->blocks.len; k--) {
-            array_free(array_index_fast(&bmap->blocks, k));
-          }
-
-          array_free(&bmap->blocks);
-          array_free(&done);
+        if (!add_line(bmap, &done, width * yb + j, i, status)) {
+          cleanup_blockmap(bmap, &done);
           return false;
         }
 
@@ -248,73 +255,38 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
         if (yp == 0) {      // intersection at a corner
           if (sneg) {       //   \ - blocks x,y-, x-,y
             if (yb > 0 && miny < y) {
-              if (!add_block_line(bmap, &done, bmap->width * (yb - 1) + j,
-                                               i,
-                                               status)) {
-                for (size_t k = 0; k < bmap->blocks.len; k--) {
-                  array_free(array_index_fast(&bmap->blocks, k));
-                }
-
-                array_free(&bmap->blocks);
-                array_free(&done);
+              if (!add_line(bmap, &done, width * (yb - 1) + j, i, status)) {
+                cleanup_blockmap(bmap, &done);
                 return false;
               }
             }
             if (j > 0 && minx < x) {
-              if (!add_block_line(bmap, &done, bmap->width * yb + j - 1,
-                                               i,
-                                               status)) {
-                for (size_t k = 0; k < bmap->blocks.len; k--) {
-                  array_free(array_index_fast(&bmap->blocks, k));
-                }
-
-                array_free(&bmap->blocks);
-                array_free(&done);
+              if (!add_line(bmap, &done, width * yb + j - 1, i, status)) {
+                cleanup_blockmap(bmap, &done);
                 return false;
               }
             }
           }
           else if (spos) { //   / - block x-,y-
             if (yb > 0 && j > 0 && minx < x) {
-              if (!add_block_line(bmap, &done, bmap->width * (yb - 1) + j - 1,
-                                               i,
-                                               status)) {
-                for (size_t k = 0; k < bmap->blocks.len; k--) {
-                  array_free(array_index_fast(&bmap->blocks, k));
-                }
-
-                array_free(&bmap->blocks);
-                array_free(&done);
+              if (!add_line(bmap, &done, width * (yb - 1) + j - 1, i, status)) {
+                cleanup_blockmap(bmap, &done);
                 return false;
               }
             }
           }
           else if (horiz) { //   - - block x-,y
             if (j > 0 && minx < x) {
-              if (!add_block_line(bmap, &done, bmap->width * yb + j - 1,
-                                               i,
-                                               status)) {
-                for (size_t k = 0; k < bmap->blocks.len; k--) {
-                  array_free(array_index_fast(&bmap->blocks, k));
-                }
-
-                array_free(&bmap->blocks);
-                array_free(&done);
+              if (!add_line(bmap, &done, width * yb + j - 1, i, status)) {
+                cleanup_blockmap(bmap, &done);
                 return false;
               }
             }
           }
         }
         else if (j > 0 && minx < x) { // else not at corner: x-,y
-          if (!add_block_line(bmap, &done, bmap->width * yb + j - 1,
-                                           i,
-                                           status)) {
-            for (size_t k = 0; k < bmap->blocks.len; k--) {
-              array_free(array_index_fast(&bmap->blocks, k));
-            }
-
-            array_free(&bmap->blocks);
-            array_free(&done);
+          if (!add_line(bmap, &done, width * yb + j - 1, i, status)) {
+            cleanup_blockmap(bmap, &done);
             return false;
           }
         }
@@ -336,8 +308,8 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
         int xb = (x - xorg) >> BLKSHIFT;      // block column number
         int xp = (x - xorg) & BLKMASK;        // x position within block
 
-        if (xb < 0 || (size_t)xb > bmap->width - 1) { // outside blockmap, continue
-          continue;
+        if (xb < 0 || (size_t)xb > width - 1) {
+          continue; // outside blockmap, continue
         }
 
         if (y < miny || y > maxy) {   // line doesn't touch row
@@ -346,13 +318,8 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
 
         // The cell that contains the intersection point is always added
 
-        if (add_block_line(bmap, &done, bmap->width * j + xb, i, status)) {
-          for (size_t k = 0; k < bmap->blocks.len; k--) {
-            array_free(array_index_fast(&bmap->blocks, k));
-          }
-
-          array_free(&bmap->blocks);
-          array_free(&done);
+        if (add_line(bmap, &done, width * j + xb, i, status)) {
+          cleanup_blockmap(bmap, &done);
           return false;
         }
 
@@ -363,73 +330,38 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
         if (xp == 0) { // intersection at a corner
           if (sneg) { //   \ - blocks x,y-, x-,y
             if (j > 0 && miny < y) {
-              if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb,
-                                               i,
-                                               status)) {
-                for (size_t k = 0; k < bmap->blocks.len; k--) {
-                  array_free(array_index_fast(&bmap->blocks, k));
-                }
-
-                array_free(&bmap->blocks);
-                array_free(&done);
+              if (!add_line(bmap, &done, width * (j - 1) + xb, i, status)) {
+                cleanup_blockmap(bmap, &done);
                 return false;
               }
             }
             if (xb > 0 && minx < x) {
-              if (!add_block_line(bmap, &done, bmap->width * j + xb - 1,
-                                               i,
-                                               status)) {
-                for (size_t k = 0; k < bmap->blocks.len; k--) {
-                  array_free(array_index_fast(&bmap->blocks, k));
-                }
-
-                array_free(&bmap->blocks);
-                array_free(&done);
+              if (!add_line(bmap, &done, width * j + xb - 1, i, status)) {
+                cleanup_blockmap(bmap, &done);
                 return false;
               }
             }
           }
           else if (vert) { //   | - block x,y-
             if (j > 0 && miny < y) {
-              if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb,
-                                               i,
-                                               status)) {
-                for (size_t k = 0; k < bmap->blocks.len; k--) {
-                  array_free(array_index_fast(&bmap->blocks, k));
-                }
-
-                array_free(&bmap->blocks);
-                array_free(&done);
+              if (!add_line(bmap, &done, width * (j - 1) + xb, i, status)) {
+                cleanup_blockmap(bmap, &done);
                 return false;
               }
             }
           }
           else if (spos) { //   / - block x-,y-
             if (xb > 0 && j > 0 && miny < y) {
-              if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb - 1,
-                                               i,
-                                               status)) {
-                for (size_t k = 0; k < bmap->blocks.len; k--) {
-                  array_free(array_index_fast(&bmap->blocks, k));
-                }
-
-                array_free(&bmap->blocks);
-                array_free(&done);
+              if (!add_line(bmap, &done, width * (j - 1) + xb - 1, i, status)) {
+                cleanup_blockmap(bmap, &done);
                 return false;
               }
             }
           }
         }
         else if (j > 0 && miny < y) { // else not on a corner: x,y-
-          if (!add_block_line(bmap, &done, bmap->width * (j - 1) + xb,
-                                           i,
-                                           status)) {
-            for (size_t k = 0; k < bmap->blocks.len; k--) {
-              array_free(array_index_fast(&bmap->blocks, k));
-            }
-
-            array_free(&bmap->blocks);
-            array_free(&done);
+          if (!add_line(blockmap, &done, width * (j - 1) + xb, i, status)) {
+            cleanup_blockmap(bmap, &done);
             return false;
           }
         }
@@ -442,8 +374,11 @@ bool d2k_blockmap_init(D2KBlockmap *bmap, D2KMap *map, Status *status) {
   return status_ok(status);
 }
 
-bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
+bool d2k_blockmap_load_from_lump(D2KBlockmap *bmap, D2KLump *lump,
                                                     Status *status) {
+  char header[BLOCKMAP_HEADER_SIZE];
+
+  slice_read_fast(&lump->data, 
   int16_t bmaporgx;
   int16_t bmaporgy;
   int16_t bmapwidth;
@@ -580,4 +515,18 @@ bool d2k_blockmap_init_from_lump(D2KBlockmap *bmap, D2KLump *lump,
   return status_ok(status);
 }
 
+bool d2k_map_loader_build_blockmap(D2KMapLoader *map_loader, Status *status) {
+  return d2k_blockmap_build(&map_loader->map->blockmap,
+                            &map_loader->map->vertexes,
+                            &map_loader->map->linedefs,
+                            status);
+}
+
+bool d2k_map_loader_load_blockmap(D2KMapLoader *map_loader, Status *status) {
+  return d2k_blockmap_load_from_lump(
+    &map_loader->map->blockmap,
+    map_loader->map_lumps[D2K_MAP_LUMP_VANILLA_BLOCKMAP],
+    status
+  );
+}
 /* vi: set et ts=2 sw=2: */

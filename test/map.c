@@ -6,11 +6,11 @@
 #include <cmocka.h>
 
 void test_map(void **state) {
-    Status status;
+  Status status;
 
-    (void)state;
+  (void)state;
 
-    status_init(&status);
+  status_init(&status);
 }
 
-/* vi: set et ts=4 sw=4: */
+/* vi: set et ts=2 sw=2: */

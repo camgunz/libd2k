@@ -245,6 +245,7 @@ SET_TARGET_PROPERTIES(d2ksharedlib PROPERTIES OUTPUT_NAME d2k)
 
 ADD_EXECUTABLE(d2k_test ${LIBD2K_SOURCE_FILES}
   ${CMAKE_SOURCE_DIR}/test/main.c
+  ${CMAKE_SOURCE_DIR}/test/basic.c
   ${CMAKE_SOURCE_DIR}/test/blockmap.c
   ${CMAKE_SOURCE_DIR}/test/map.c
   ${CMAKE_SOURCE_DIR}/test/wad.c

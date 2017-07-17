@@ -20,62 +20,52 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_ANGLE_H__
-#define D2K_ANGLE_H__
+#ifndef D2K_MAP_NODES_H__
+#define D2K_MAP_NODES_H__
 
 #include "d2k/fixed_math.h"
 
-/* [TODO] Prefix all of this */
-
-struct D2KLumpDirectoryStruct;
-
 enum {
-  D2K_ANGLE_INVALID_SINE_TABLE = 1,
-  D2K_ANGLE_INVALID_TANGENT_TABLE,
-  D2K_ANGLE_INVALID_TANGENT_TO_ANGLE_TABLE,
+  D2K_MAP_NODES_MALFORMED_LUMP = 1,
+  D2K_MAP_NODES_MULTIPLE_VERSIONS,
+  D2K_MAP_NODES_UNKNOWN_NODES_VERSION,
+  D2K_MAP_NODES_ZDOOM_EXTENDED_COMPRESSED_NODES_NOT_IMPLEMENTED,
+  D2K_MAP_NODES_ZDOOM_EXTENDED_GL_NODES_NOT_IMPLEMENTED,
+  D2K_MAP_NODES_ZDOOM_EXTENDED_COMPRESSED_GL_NODES_NOT_IMPLEMENTED,
+  D2K_MAP_NODES_ZDOOM_EXTENDED_GL_UDMF_NODES_NOT_IMPLEMENTED,
+  D2K_MAP_NODES_ZDOOM_EXTENDED_COMPRESSED_GL_UDMF_NODES_NOT_IMPLEMENTED,
 };
 
-#define FINEANGLES 8192
-#define FINEMASK   (FINEANGLES - 1)
+typedef enum {
+  D2K_MAP_NODES_VERSION_VANILLA,
+  D2K_MAP_NODES_VERSION_GL_NODES_1,
+  D2K_MAP_NODES_VERSION_GL_NODES_2,
+  D2K_MAP_NODES_VERSION_GL_NODES_3,
+  D2K_MAP_NODES_VERSION_GL_NODES_4,
+  D2K_MAP_NODES_VERSION_GL_NODES_5,
+  D2K_MAP_NODES_VERSION_DEEP_BSP_4,
+  D2K_MAP_NODES_VERSION_ZDOOM_EXTENDED,
+  D2K_MAP_NODES_VERSION_ZDOOM_EXTENDED_COMPRESSED,
+  D2K_MAP_NODES_VERSION_ZDOOM_EXTENDED_GL,
+  D2K_MAP_NODES_VERSION_ZDOOM_EXTENDED_COMPRESSED_GL,
+  D2K_MAP_NODES_VERSION_ZDOOM_EXTENDED_GL_UDMF,
+  D2K_MAP_NODES_VERSION_ZDOOM_EXTENDED_COMPRESSED_GL_UDMF,
+  D2K_MAP_NODES_VERSION_MAX,
+} D2KMapNodesVersion;
 
-#define ANGLETOFINESHIFT 19 /* 0x100000000 to 0x2000 */
+typedef struct D2KMapNodeStruct {
+  D2KFixedPoint x;
+  D2KFixedPoint y;
+  D2KFixedPoint dx;
+  D2KFixedPoint dy;
+  D2KFixedPoint bbox[2][4];
+  int           children[2];
+} D2KMapNode;
 
-/* Binary Angle Measument, BAM. */
-#define ANG45     0x20000000
-#define ANG90     0x40000000
-#define ANG180    0x80000000
-#define ANG270    0xc0000000
-#define ANG1      (ANG45 / 45)
-#define ANGLE_MAX 0xFFFFFFFF
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-#define SLOPERANGE 2048
-#define SLOPEBITS    11
-#define DBITS      (FRACBITS - SLOPEBITS)
-
-#define SINE_COUNT             (5 * FINEANGLES / 4) /* 10240 */
-#define COSINE_COUNT           FINEANGLES           /*  8192 */
-#define TANGENT_COUNT          (FINEANGLES / 2)     /*  4096 */
-
-/* The +1 size is to handle the case when x==y without additional checking. */
-#define TANGENT_TO_ANGLE_COUNT (SLOPERANGE + 1)     /*  2049 */
-
-typedef uint32_t D2KAngle;
-
-/* Utility function, called by R_PointToAngle. */
-typedef int (*slope_div_fn)(uint32_t num, uint32_t den);
-
-int  d2k_slope_div(uint32_t num, uint32_t den);
-int  d2k_slope_div_ex(unsigned int num, unsigned int den);
-bool d2k_angle_load_trig_tables(struct D2KLumpDirectoryStruct *lump_directory,
-                                D2KFixedPoint *finesine,
-                                D2KFixedPoint *finecosine,
-                                D2KFixedPoint *finetangent,
-                                D2KAngle *tantoangle,
-                                Status *status);
+bool d2k_map_loader_detect_nodes_version(struct D2KMapLoaderStruct *map_loader,
+                                         Status *status);
+bool d2k_map_loader_load_nodes(struct D2KMapLoaderStruct *map_loader,
+                               Status *status);
 
 #endif
 

@@ -20,62 +20,37 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_ANGLE_H__
-#define D2K_ANGLE_H__
+#ifndef D2K_MAP_BLOCKMAP_H__
+#define D2K_MAP_BLOCKMAP_H__
 
 #include "d2k/fixed_math.h"
 
-/* [TODO] Prefix all of this */
-
-struct D2KLumpDirectoryStruct;
+struct D2KLumpStruct;
 
 enum {
-  D2K_ANGLE_INVALID_SINE_TABLE = 1,
-  D2K_ANGLE_INVALID_TANGENT_TABLE,
-  D2K_ANGLE_INVALID_TANGENT_TO_ANGLE_TABLE,
+  D2K_MAP_BLOCKMAP_NEGATIVE_WIDTH = 1,
+  D2K_MAP_BLOCKMAP_NEGATIVE_HEIGHT,
+  D2K_MAP_BLOCKMAP_TRUNCATED_HEADER,
+  D2K_MAP_BLOCKMAP_TRUNCATED_LINE_LIST_DIRECTORY,
+  D2K_MAP_BLOCKMAP_INVALID_OFFSET_IN_LINE_LIST_DIRECTORY,
 };
 
-#define FINEANGLES 8192
-#define FINEMASK   (FINEANGLES - 1)
+typedef struct D2KBlockmapStruct {
+  size_t        width;
+  size_t        height;
+  D2KFixedPoint origin_x;
+  D2KFixedPoint origin_y;
+  Array         blocks;
+} D2KBlockmap;
 
-#define ANGLETOFINESHIFT 19 /* 0x100000000 to 0x2000 */
-
-/* Binary Angle Measument, BAM. */
-#define ANG45     0x20000000
-#define ANG90     0x40000000
-#define ANG180    0x80000000
-#define ANG270    0xc0000000
-#define ANG1      (ANG45 / 45)
-#define ANGLE_MAX 0xFFFFFFFF
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-#define SLOPERANGE 2048
-#define SLOPEBITS    11
-#define DBITS      (FRACBITS - SLOPEBITS)
-
-#define SINE_COUNT             (5 * FINEANGLES / 4) /* 10240 */
-#define COSINE_COUNT           FINEANGLES           /*  8192 */
-#define TANGENT_COUNT          (FINEANGLES / 2)     /*  4096 */
-
-/* The +1 size is to handle the case when x==y without additional checking. */
-#define TANGENT_TO_ANGLE_COUNT (SLOPERANGE + 1)     /*  2049 */
-
-typedef uint32_t D2KAngle;
-
-/* Utility function, called by R_PointToAngle. */
-typedef int (*slope_div_fn)(uint32_t num, uint32_t den);
-
-int  d2k_slope_div(uint32_t num, uint32_t den);
-int  d2k_slope_div_ex(unsigned int num, unsigned int den);
-bool d2k_angle_load_trig_tables(struct D2KLumpDirectoryStruct *lump_directory,
-                                D2KFixedPoint *finesine,
-                                D2KFixedPoint *finecosine,
-                                D2KFixedPoint *finetangent,
-                                D2KAngle *tantoangle,
-                                Status *status);
+bool d2k_blockmap_build(D2KBlockmap *bmap, Array *vertexes, Array *linedefs,
+                                                            Status *status);
+bool d2k_blockmap_load_from_lump(D2KBlockmap *bmap, struct D2KLumpStruct *lump,
+                                                    Status *status);
+bool d2k_map_loader_build_blockmap(struct D2KMapLoaderStruct *map_loader,
+                                   Status *status);
+bool d2k_map_loader_load_blockmap(struct D2KMapLoaderStruct *map_loader,
+                                  Status *status);
 
 #endif
 

@@ -44,9 +44,9 @@ typedef enum {
 } D2KLumpNamespace;
 
 typedef enum {
-  WAD_SOURCE_IWAD,
-  WAD_SOURCE_PWAD,
-  WAD_SOURCE_LUMP,
+  D2K_WAD_SOURCE_IWAD,
+  D2K_WAD_SOURCE_PWAD,
+  D2K_WAD_SOURCE_LUMP,
 } D2KWadSource;
 
 typedef struct D2KWadStruct {
@@ -97,6 +97,23 @@ static inline bool d2k_lump_directory_index(D2KLumpDirectory *lump_directory,
                                             D2KLump **lump,
                                             Status *status) {
   return parray_index(&lump_directory->lumps, index, (void **)lump, status);
+}
+
+static inline bool d2k_lump_directory_index_check_name(
+    D2KLumpDirectory *lump_directory;
+    size_t index,
+    const char *name,
+    bool *equal,
+    Status *status) {
+  D2KLump *lump = NULL;
+
+  if (!d2k_lump_directory_index(lump_directory, index, &lump, status)) {
+    return false;
+  }
+
+  *equal = (strcmp(lump->name, name) == 0);
+
+  return status_ok(status);
 }
 
 #endif
