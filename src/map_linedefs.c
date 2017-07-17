@@ -69,24 +69,13 @@ bool d2k_map_loader_load_linedefs(D2KMapLoader *map_loader, Status *status) {
                                           LINEDEF_SIZE,
                                           (void *)linedef_data);
 
-    start_vertex_index = (size_t)cble16((linedef_data[0] << 8) |
-                                        (linedef_data[1]));
-
-    end_vertex_index = (size_t)cble16((linedef_data[2] << 8) |
-                                      (linedef_data[3]));
-
-    linedef->flags = cble16((linedef_data[4] << 8) | (linedef_data[5]));
-
-    linedef->special = cble16((linedef_data[6] << 8) | (linedef_data[7]));
-
-    tagged_sector_index = (size_t)cble16((linedef_data[8] << 8) |
-                                         (linedef_data[9]));
-
-    front_side_index = (size_t)cble16((linedef_data[10] << 8) |
-                                      (linedef_data[11]));
-
-    back_side_index = (size_t)cble16((linedef_data[12] << 8) |
-                                     (linedef_data[13]));
+    start_vertex_index  = LUMP_DATA_SHORT_TO_INDEX(linedef_data, 0);
+    end_vertex_index    = LUMP_DATA_SHORT_TO_INDEX(linedef_data, 2);
+    linedef->flags      = LUMP_DATA_SHORT_TO_USHORT(linedef_data, 4);
+    linedef->special    = LUMP_DATA_SHORT_TO_SHORT(linedef_data, 6);
+    tagged_sector_index = LUMP_DATA_TO_INDEX(linedef_data, 8);
+    front_side_index    = LUMP_DATA_TO_INDEX(linedef_data, 10);
+    back_side_index     = LUMP_DATA_TO_INDEX(linedef_data, 12);
 
     if (start_vertex_index >= map_loader->map->vertexes.len) {
       return invalid_linedef_start_vertex_index(status);

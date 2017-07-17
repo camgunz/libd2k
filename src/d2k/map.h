@@ -31,6 +31,31 @@ struct D2KLumpStruct;
 struct D2KMapObjectStruct;
 struct D2KLumpDirectoryStruct;
 
+#define LUMP_DATA_INT_TO_FIXED(data, i) \
+    d2k_int_to_fixed(cble32((data[(i)    ] << 24) | \
+                            (data[(i) + 1] << 16) | \
+                            (data[(i) + 2] <<  8) | \
+                            (data[(i) + 3])))
+
+#define LUMP_DATA_SHORT_TO_FIXED(data, i) \
+    d2k_int_to_fixed(cble16((data[(i)] << 8) | (data[(i) + 1])))
+
+#define LUMP_DATA_SHORT_TO_ANGLE(data, i) \
+    (D2KAngle)((cble16((data[(i)] << 8) | (data[(i) + 1]))) << 16)
+
+#define LUMP_DATA_SHORT_TO_SHORT(data, i) \
+    (int16_t)(cble16((data[(i)] << 8) | (data[(i) + 1])))
+
+#define LUMP_DATA_SHORT_TO_USHORT(data, i) \
+    (uint16_t)(cble16((data[(i)] << 8) | (data[(i) + 1])))
+
+#define LUMP_DATA_SHORT_TO_SIZE_T(data, i) \
+    (size_t)((cble16((data[(i)] << 8) | (data[(i) + 1]))) << 16)
+
+#define LUMP_DATA_SHORT_TO_INDEX(data, i) LUMP_DATA_SHORT_TO_SIZE_T(data, i)
+
+#define LUMP_DATA_SHORT_TO_COUNT(data, i) LUMP_DATA_SHORT_TO_SIZE_T(data, i)
+
 enum {
   D2K_MAP_NOT_FOUND = 1,
   D2K_MAP_MISSING_THINGS_LUMP,
@@ -193,6 +218,15 @@ typedef struct D2KSegLineStruct {
   D2KFixedPoint  y2;
   D2KFixedPoint  bbox[4];
 } D2KSegLine;
+
+typedef struct D2KMapNodeStruct {
+  D2KFixedPoint x;
+  D2KFixedPoint y;
+  D2KFixedPoint dx;
+  D2KFixedPoint dy;
+  D2KFixedPoint bbox[2][4];
+  size_t        children[2];
+} D2KMapNode;
 
 typedef struct D2KMapStruct {
   char        wad_name[6];

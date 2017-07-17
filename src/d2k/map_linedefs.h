@@ -67,7 +67,7 @@ typedef struct D2KLinedefStruct {
   D2KFixedPoint                dy;
   float                        texel_length;
   uint16_t                     flags;
-  short                        special;
+  int16_t                      special;
   struct D2KSectorStruct      *tagged_sector;
   struct D2KSidedefStruct     *front_side;
   struct D2KSidedefStruct     *back_side;

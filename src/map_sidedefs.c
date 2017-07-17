@@ -50,19 +50,12 @@ bool d2k_map_loader_load_sidedefs(D2KMapLoader *map_loader, Status *status) {
                                           SIDEDEF_SIZE,
                                           (void *)sidedef_data);
 
-    sidedef->texture_offset = d2k_int_to_fixed(cble16((sidedef_data[0] << 8) |
-                                                      (sidedef_data[1])));
-
-    sidedef->row_offset = d2k_int_to_fixed(cble16((sidedef_data[2] << 8) |
-                                                  (sidedef_data[3])));
-
+    sidedef->texture_offset = LUMP_DATA_SHORT_TO_FIXED(sidedef_data, 0);
+    sidedef->row_offset = LUMP_DATA_SHORT_TO_FIXED(sidedef_data, 2);
     cbmemmove((void *)top_texture, sidedef_data[4], 8);
-
     cbmemmove((void *)bottom_texture, sidedef_data[12], 8);
-
     cbmemmove((void *)mid_texture, sidedef_data[20], 8);
-
-    sector_index = (size_t)cble16((sidedef_data[28] << 8) | sidedef_data[29]);
+    sector_index = LUMP_DATA_SHORT_TO_INDEX(sidedef_data, 28);
 
     if (sector_index >= map_loader->map->sectors.len) {
       return invalid_sidedef_sector_index(status);

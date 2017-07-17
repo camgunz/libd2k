@@ -58,24 +58,13 @@ bool d2k_map_loader_load_sectors(D2KMapLoader *map_loader, Status *status) {
                                          SECTOR_SIZE,
                                          (void *)sector_data);
 
-    sector->floor_height = d2k_int_to_fixed(cble16((sector_data[0] << 8) |
-                                                   (sector_data[1])));
-
-    sector->ceiling_height = d2k_int_to_fixed(cble16((sector_data[2] << 8) |
-                                                     (sector_data[3])));
-
+    sector->floor_height = LUMP_DATA_SHORT_TO_FIXED(sector_data, 0);
+    sector->ceiling_height = LUMP_DATA_SHORT_TO_FIXED(sector_data, 2);
     cbmemmove((void *)floor_texture, (void *)&sector_data[4], 8);
-
     cbmemmove((void *)ceiling_texture, (void *)&sector_data[12], 8);
-
-    sector->light_level = d2k_int_to_fixed(cble16((sector_data[20] << 8) |
-                                                  (sector_data[21])));
-
-    sector->special = d2k_int_to_fixed(cble16((sector_data[22] << 8) |
-                                              (sector_data[23])));
-
-    sector->tag = d2k_int_to_fixed(cble16((sector_data[24] << 8) |
-                                          (sector_data[25])));
+    sector->light_level = LUMP_DATA_SHORT_TO_FIXED(sector_data, 20);
+    sector->special = LUMP_DATA_SHORT_TO_FIXED(sector_data, 22);
+    sector->tag = LUMP_DATA_SHORT_TO_FIXED(sector_data, 24);
 
     if (!d2k_lump_directory_lookup_ns(lump_directory, floor_texture,
                                                       D2K_LUMP_NAMESPACE_FLATS,

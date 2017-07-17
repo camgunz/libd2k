@@ -82,8 +82,9 @@
     "ZDoom extended compressed GL UDMF nodes not implemented"              \
   )
 
-#define VANILLA_SEG_SIZE 12
-#define VANILLA_SUBSECTOR_SIZE 4
+#define VANILLA_SEG_SIZE       12
+#define VANILLA_SUBSECTOR_SIZE  4
+#define VANILLA_NODES_SIZE     28
 
 typedef struct D2KMapNodeVersionHeaderInfoStruct {
   D2KMapLump         lump;
@@ -117,7 +118,6 @@ static inline bool lump_starts_with(D2KLump *lump,
 }
 
 static bool load_subsectors(D2KMapLoader *map_loader, Status *status) {
-  int  i;
   D2KLump *subsectors_lump = map_loader->map_lumps[D2K_MAP_LUMP_SSECT];
   size_t subsectors_count = subsectors_lump->data.len / VANILLA_SUBSECTOR_SIZE;
 
@@ -131,9 +131,7 @@ static bool load_subsectors(D2KMapLoader *map_loader, Status *status) {
   }
 
   for (size_t i = 0; i < subsector_count; i++) {
-    D2KSubsector *subsector = array_append_fast(
-      &map_loader->map->subsectors
-    );
+    D2KSubsector *subsector = array_append_fast(&map_loader->map->subsectors);
     char subsector_data[VANILLA_SUBSECTOR_SIZE];
     size_t seg_count;
     size_t first_seg;
@@ -142,8 +140,9 @@ static bool load_subsectors(D2KMapLoader *map_loader, Status *status) {
                                             VANILLA_SUBSECTOR_SIZE,
                                             (void *)subsector_data);
 
-    seg_count = (size_t)cble16((subsector_data[0] << 8) | (subsector_data[1]));
-    first_seg = (size_t)cble16((subsector_data[0] << 8) | (subsector_data[1]));
+
+    seg_count = LUMP_DATA_SHORT_TO_COUNT(subsector_data, 0);
+    first_seg = LUMP_DATA_SHORT_TO_INDEX(subsector_data, 2);
 
     if ((first_seg + seg_count) > map_loader->map->segs.len) {
       return out_of_range_subsector_seg_list(status);
@@ -155,6 +154,56 @@ static bool load_subsectors(D2KMapLoader *map_loader, Status *status) {
 }
 
 static bool load_nodes(D2KMapLoader *map_loader, Status *status) {
+  D2KLump *nodes_lump = map_loader->map_lumps[D2K_MAP_LUMP_NODES];
+  size_t nodes_count = nodes_lump->data.len / VANILLA_NODE_SIZE;
+
+  if ((nodes_lump->data.len % VANILLA_NODES_SIZE) != 0) {
+    return malformed_subsectors_lump(status);
+  }
+
+  if (!array_ensure_capacity(&map_loader->map->nodes, nodes_count, status)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < nodes_count; i++) {
+    D2KNode *node = array_append_fast(&map_loader->map->nodes);
+    char node_data[VANILLA_NODE_SIZE];
+    uint16_t children[2];
+
+    slice_read_fast(&nodes_lump->data, i * VANILLA_NODE_SIZE,
+                                       VANILLA_NODE_SiZE,
+                                       (void *)node_data);
+
+    node->x  = LUMP_DATA_SHORT_TO_FIXED(node_data, 0);
+    node->y  = LUMP_DATA_SHORT_TO_FIXED(node_data, 2);
+    node->dx = LUMP_DATA_SHORT_TO_FIXED(node_data, 4);
+    node->dy = LUMP_DATA_SHORT_TO_FIXED(node_data, 6);
+    for (size_t j = 0; j < 2; j++) {
+      for (size_t k = 0; k < 4; k++) {
+        node->bbox[j][k] = LUMP_DATA_SHORT_TO_FIXED(node_data, (j * 4) + k);
+      }
+    }
+    children[0] = LUMP_DATA_SHORT_TO_USHORT(node_data, 24);
+    children[1] = LUMP_DATA_SHORT_TO_USHORT(node_data, 26);
+
+    for (size_t j = 0; j < 2; j++) {
+      node->children[j] = children[j];
+
+      if (node->children[j] == 0xFFFF) {
+        node->children[j] = -1;
+      }
+      else if ((node->children[j] & 0x8000) == 0x8000) {
+        node->children[j] = node->children[j] &= ~0x8000;
+
+        if (node->children[j] >= map_loader->map->subsectors.len) {
+          return invalid_node_child_index(status);
+          /* PrBoom+ sets this to 0 */
+        }
+
+        node->children[j] |= D2K_MAP_NODE_FLAGS_SUBSECTOR;
+      }
+    }
+  }
 }
 
 static bool load_segs(D2KMapLoader *map_loader, Status *status) {
@@ -182,18 +231,12 @@ static bool load_segs(D2KMapLoader *map_loader, Status *status) {
 
     slice_read_fast(&segs_lump->data, i * VANILLA_SEG_SIZE, VANILLA_SEG_SIZE,
                                                             (void *)seg_data);
-    start_vertex_index = (size_t)cble16((seg_data[0] << 8) | (seg_data[1]));
-
-    end_vertex_index   = (size_t)cble16((seg_data[2] << 8) | (seg_data[3]));
-
-    angle = cble16((seg_data[4] << 8) | (seg_data[5])) << 16;
-
-    linedef_index = (size_t)cble16((seg_data[6]  << 8) | (seg_data[7]));
-
-    side = cble16((seg_data[8] << 8) | (seg_data[9]));
-
-    offset = d2k_int_to_fixed_point(cble16((seg_data[10] << 8) |
-                                           (seg_data[11])));
+    start_vertex_index = LUMP_DATA_SHORT_TO_INDEX(seg_data,  0);
+    end_vertex_index   = LUMP_DATA_SHORT_TO_INDEX(seg_data,  2);
+    angle              = LUMP_DATA_SHORT_TO_ANGLE(seg_data,  4);
+    linedef_index      = LUMP_DATA_SHORT_TO_INDEX(seg_data,  6);
+    side               = LUMP_DATA_SHORT_TO_SHORT(seg_data,  8);
+    offset             = LUMP_DATA_SHORT_TO_SHORT(seg_data, 10);
 
 #if 0
     /* This is the code PrBoom+ uses to fix out-of-range vertex indices */

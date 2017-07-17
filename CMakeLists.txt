@@ -210,17 +210,38 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src)
 
 SET(LIBD2K_SOURCE_FILES
-  ${CMAKE_SOURCE_DIR}/src/blockmap.c
   ${CMAKE_SOURCE_DIR}/src/angle.c
+  ${CMAKE_SOURCE_DIR}/src/blockmap.c
   ${CMAKE_SOURCE_DIR}/src/map.c
+  ${CMAKE_SOURCE_DIR}/src/map_linedefs.c
+  ${CMAKE_SOURCE_DIR}/src/map_loader.c
+  ${CMAKE_SOURCE_DIR}/src/map_nodes.c
+  ${CMAKE_SOURCE_DIR}/src/map_sectors.c
+  ${CMAKE_SOURCE_DIR}/src/map_sidedefs.c
+  ${CMAKE_SOURCE_DIR}/src/map_vertexes.c
   ${CMAKE_SOURCE_DIR}/src/wad.c
 )
 
 SET(INCLUDE_FILES
   ${CMAKE_SOURCE_DIR}/src/d2k.h
   ${CMAKE_SOURCE_DIR}/src/d2k/internal.h
-  ${CMAKE_SOURCE_DIR}/src/d2k/blockmap.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/angle.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/fixed_math.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/fixed_vertex.h
   ${CMAKE_SOURCE_DIR}/src/d2k/map.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_blockmap.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_linedefs.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_loader.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_nodes.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_object.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_object_info.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_object_type.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_problem.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_sectors.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_vertexes.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/sound_origin.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/sprite.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/thinker.h
   ${CMAKE_SOURCE_DIR}/src/d2k/wad.h
 )
 

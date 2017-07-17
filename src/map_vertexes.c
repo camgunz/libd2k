@@ -64,11 +64,8 @@ bool d2k_map_loader_load_vertexes(D2KMapLoader *map_loader, Status *status) {
                                           VANILLA_VERTEX_SIZE,
                                           (void *)vertex_data);
 
-    v->x = d2k_int_to_fixed_point(cble16((vertex_data[0] << 8) |
-                                         (vertex_data[1])));
-
-    v->y = d2k_int_to_fixed_point(cble16((vertex_data[2] << 8) |
-                                         (vertex_data[3])));
+    v->x = LUMP_DATA_SHORT_TO_FIXED(vertex_data, 0);
+    v->y = LUMP_DATA_SHORT_TO_FIXED(vertex_data, 2);
   }
 
   if (d2k_map_loader_has_gl_lumps(map_loader)) {
@@ -100,15 +97,8 @@ bool d2k_map_loader_load_vertexes(D2KMapLoader *map_loader, Status *status) {
                                              GL_VERT_VERTEX_SIZE,
                                              (void *)vertex_data);
 
-        v->x = d2k_int_to_fixed_point(cble32((vertex_data[0] << 24) |
-                                             (vertex_data[1] << 16) |
-                                             (vertex_data[2] <<  8) |
-                                             (vertex-data[3])));
-
-        v->x = d2k_int_to_fixed_point(cble32((vertex_data[4] << 24) |
-                                             (vertex_data[5] << 16) |
-                                             (vertex_data[6] <<  8) |
-                                             (vertex-data[7])));
+        v->x = LUMP_DATA_INT_TO_FIXED(vertex_data, 0);
+        v->y = LUMP_DATA_INT_TO_FIXED(vertex_data, 4);
       }
     }
   }
