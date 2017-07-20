@@ -21,7 +21,11 @@
 /*****************************************************************************/
 
 #include "d2k/internal.h"
+#include "d2k/fixed_vertex.h"
 #include "d2k/map.h"
+#include "d2k/map_blockmap.h"
+#include "d2k/map_linedefs.h"
+#include "d2k/map_loader.h"
 #include "d2k/wad.h"
 
 #define map_missing_blockmap_lump(status) status_error( \
@@ -66,6 +70,8 @@
   "invalid offset in line list directory"                          \
 )
 
+#define VANILLA_BLOCKMAP_HEADER_SIZE 8
+
 /* places to shift rel position for cell num */
 #define BLKSHIFT 7
 
@@ -90,16 +96,34 @@ static inline bool add_line(D2KBlockmap *bmap, Array *done, size_t block_index,
   return status_ok(status);
 }
 
-static inline void cleanup_blockmap(D2KBlockmap *blockmap, Array *done) {
-  for (size_t i = 0; i < blockmap->blocks.len; i--) {
-    array_free(array_index_fast(&blockmap->blocks, i));
+static inline void cleanup_blockmap(D2KBlockmap *bmap, Array *done) {
+  for (size_t i = 0; i < bmap->blocks.len; i--) {
+    array_free(array_index_fast(&bmap->blocks, i));
   }
 
-  array_free(&blockmap->blocks);
+  array_free(&bmap->blocks);
   array_free(done);
 }
 
-  d2k_blockmap_build
+void d2k_blockmap_init(D2KBlockmap *bmap) {
+  bmap->width = 0;
+  bmap->height = 0;
+  bmap->origin_x = 0;
+  bmap->origin_y = 0;
+  array_init(&bmap->blocks, sizeof(Array));
+}
+
+void d2k_blockmap_clear(D2KBlockmap *bmap) {
+  bmap->width = 0;
+  bmap->height = 0;
+  bmap->origin_x = 0;
+  bmap->origin_y = 0;
+
+  for (size_t i = 0; i < bmap->blocks.len; i++) {
+    Array *block_list = array_index_fast(&bmap->blocks, i);
+
+    array_clear(block_list);
+  }
 }
 
 bool d2k_blockmap_build(D2KBlockmap *bmap, Array *vertexes, Array *linedefs,
@@ -110,8 +134,6 @@ bool d2k_blockmap_build(D2KBlockmap *bmap, Array *vertexes, Array *linedefs,
   int map_miny = INT_MAX;
   int map_maxx = INT_MIN;
   int map_maxy = INT_MIN;
-  D2KMap *map = map_loader->map;
-  D2KBlockmap *bmap = &map->blockmap;
   Array done;
   size_t width;
 
@@ -360,7 +382,7 @@ bool d2k_blockmap_build(D2KBlockmap *bmap, Array *vertexes, Array *linedefs,
           }
         }
         else if (j > 0 && miny < y) { // else not on a corner: x,y-
-          if (!add_line(blockmap, &done, width * (j - 1) + xb, i, status)) {
+          if (!add_line(bmap, &done, width * (j - 1) + xb, i, status)) {
             cleanup_blockmap(bmap, &done);
             return false;
           }
@@ -376,9 +398,7 @@ bool d2k_blockmap_build(D2KBlockmap *bmap, Array *vertexes, Array *linedefs,
 
 bool d2k_blockmap_load_from_lump(D2KBlockmap *bmap, D2KLump *lump,
                                                     Status *status) {
-  char header[BLOCKMAP_HEADER_SIZE];
-
-  slice_read_fast(&lump->data, 
+  char blockmap_header_data[VANILLA_BLOCKMAP_HEADER_SIZE];
   int16_t bmaporgx;
   int16_t bmaporgy;
   int16_t bmapwidth;
@@ -391,6 +411,14 @@ bool d2k_blockmap_load_from_lump(D2KBlockmap *bmap, D2KLump *lump,
   if (dir_start >= lump->data.len) {
     return truncated_blockmap_header(status);
   }
+
+  slice_read_fast(&lump->data, 0, VANILLA_BLOCKMAP_HEADER_SIZE,
+                                  (void *)blockmap_header_data);
+
+  bmaporgx   = LUMP_DATA_SHORT_TO_SHORT(blockmap_header_data, 0);
+  bmaporgy   = LUMP_DATA_SHORT_TO_SHORT(blockmap_header_data, 2);
+  bmapwidth  = LUMP_DATA_SHORT_TO_SHORT(blockmap_header_data, 4);
+  bmapheight = LUMP_DATA_SHORT_TO_SHORT(blockmap_header_data, 6);
 
   if (!slice_read(&lump->data, 0, sizeof(int16_t), (void *)&bmaporgx,
                                                    status)) {
@@ -525,7 +553,7 @@ bool d2k_map_loader_build_blockmap(D2KMapLoader *map_loader, Status *status) {
 bool d2k_map_loader_load_blockmap(D2KMapLoader *map_loader, Status *status) {
   return d2k_blockmap_load_from_lump(
     &map_loader->map->blockmap,
-    map_loader->map_lumps[D2K_MAP_LUMP_VANILLA_BLOCKMAP],
+    map_loader->map_lumps[D2K_VANILLA_MAP_LUMP_BLOCKMAP],
     status
   );
 }

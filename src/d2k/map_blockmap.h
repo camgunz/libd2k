@@ -26,6 +26,7 @@
 #include "d2k/fixed_math.h"
 
 struct D2KLumpStruct;
+struct D2KMapLoaderStruct;
 
 enum {
   D2K_MAP_BLOCKMAP_NEGATIVE_WIDTH = 1,
@@ -43,6 +44,8 @@ typedef struct D2KBlockmapStruct {
   Array         blocks;
 } D2KBlockmap;
 
+void d2k_blockmap_init(D2KBlockmap *blockmap);
+void d2k_blockmap_clear(D2KBlockmap *blockmap);
 bool d2k_blockmap_build(D2KBlockmap *bmap, Array *vertexes, Array *linedefs,
                                                             Status *status);
 bool d2k_blockmap_load_from_lump(D2KBlockmap *bmap, struct D2KLumpStruct *lump,

@@ -20,39 +20,31 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_MAP_LOADER_H__
-#define D2K_MAP_LOADER_H__
+#ifndef D2K_MAP_SEGS_H__
+#define D2K_MAP_SEGS_H__
 
-#include "d2k/map.h"
-#include "d2k/map_nodes.h"
-#include "d2k/wad.h"
+#include "d2k/fixed_math.h"
 
-typedef struct D2KMapLoaderStruct {
-  D2KMap             *map;
-  D2KLump            *map_lumps[D2K_VANILLA_MAP_LUMP_MAX];
-  D2KLump            *gl_map_lumps[D2K_GL_MAP_LUMP_MAX];
-  D2KLump            *udmf_start_map_lump;
-  D2KLump            *udmf_end_map_lump;
-  D2KMapNodesVersion  nodes_version;
-} D2KMapLoader;
+enum {
+  D2K_MAP_SEGS_MALFORMED_LUMP = 1,
+};
 
-bool d2k_map_loader_load_map(D2KMapLoader *map_loader,
-                             D2KMap *map,
-                             D2KLumpDirectory *lump_directory,
-                             const char *map_name,
-                             Status *status);
+typedef struct D2KSegStruct {
+  struct D2KFixedVertexStruct *v1;
+  struct D2KFixedVertexStruct *v2;
+  D2KFixedPoint                offset;
+  D2KAngle                     angle;
+  D2KAngle                     pangle;
+  int64_t                      length;
+  struct D2KSidedefStruct     *sidedef;
+  struct D2KLinedefStruct     *linedef;
+  bool                         mini_seg;
+  struct D2KSectorStruct      *front_sector;
+  struct D2KSectorStruct      *back_sector;
+} D2KSeg;
 
-bool d2k_map_loader_has_gl_lumps(D2KMapLoader *map_loader);
-
-static inline
-size_t d2k_map_loader_vanilla_lump_offset(D2KMapLoader *map_loader) {
-  return map_loader->map_lumps[D2K_VANILLA_MAP_LUMP_MAP]->index;
-}
-
-static inline
-size_t d2k_map_loader_gl_lump_offset(D2KMapLoader *map_loader) {
-  return map_loader->gl_map_lumps[D2K_GL_MAP_LUMP_MAP]->index;
-}
+bool d2k_map_loader_load_segs(struct D2KMapLoaderStruct *map_loader,
+                              Status *status);
 
 #endif
 

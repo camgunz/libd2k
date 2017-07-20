@@ -100,7 +100,7 @@ static inline bool d2k_lump_directory_index(D2KLumpDirectory *lump_directory,
 }
 
 static inline bool d2k_lump_directory_index_check_name(
-    D2KLumpDirectory *lump_directory;
+    D2KLumpDirectory *lump_directory,
     size_t index,
     const char *name,
     bool *equal,

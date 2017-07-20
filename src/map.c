@@ -21,7 +21,15 @@
 /*****************************************************************************/
 
 #include "d2k/internal.h"
+#include "d2k/map_blockmap.h"
+#include "d2k/fixed_vertex.h"
 #include "d2k/map.h"
+#include "d2k/map_linedefs.h"
+#include "d2k/map_nodes.h"
+#include "d2k/map_sectors.h"
+#include "d2k/map_segs.h"
+#include "d2k/map_sidedefs.h"
+#include "d2k/map_subsectors.h"
 #include "d2k/wad.h"
 
 #define map_not_found(status) status_error( \
@@ -136,39 +144,18 @@
   "map has truncated SSECTORS lump"                   \
 )
 
-void d2k_map_blockmap_init(D2KBlockmap *blockmap) {
-  blockmap->width = 0;
-  blockmap->height = 0;
-  blockmap->origin_x = 0;
-  blockmap->origin_y = 0;
-  array_init(&blockmap->blocks);
-}
-
-void d2k_map_blockmap_init(D2KBlockmap *blockmap) {
-  blockmap->width = 0;
-  blockmap->height = 0;
-  blockmap->origin_x = 0;
-  blockmap->origin_y = 0;
-
-  for (size_t i = 0; i < blockmap->blocks.len; i++) {
-    Array *block_list = array_index_fast(&blockmap->blocks, i);
-
-    array_clear(block_list);
-  }
-}
-
 void d2k_map_init(D2KMap *map) {
   memset(map->wad_name, 0, sizeof(map->wad_name));
   memset(map->gl_wad_name, 0, sizeof(map->gl_wad_name));
-  array_init(&map->vertexes);
-  array_init(&map->segs);
-  array_init(&map->sectors);
-  array_init(&map->subsectors);
-  array_init(&map->nodes);
-  array_init(&map->lines);
-  array_init(&map->sides);
-  array_init(&map->sslines);
-  d2k_map_blockmap_init(&map->blockmap);
+  array_init(&map->vertexes, sizeof(D2KFixedVertex));
+  array_init(&map->segs, sizeof(D2KSeg));
+  array_init(&map->sectors, sizeof(D2KSector));
+  array_init(&map->subsectors, sizeof(D2KSubsector));
+  array_init(&map->nodes, sizeof(D2KMapNode));
+  array_init(&map->linedefs, sizeof(D2KLinedef));
+  array_init(&map->sidedefs, sizeof(D2KSidedef));
+  array_init(&map->sslines, sizeof(D2KSegLine));
+  d2k_blockmap_init(&map->blockmap);
 }
 
 void d2k_map_clear(D2KMap *map) {
@@ -179,10 +166,10 @@ void d2k_map_clear(D2KMap *map) {
   array_clear(&map->sectors);
   array_clear(&map->subsectors);
   array_clear(&map->nodes);
-  array_clear(&map->lines);
-  array_clear(&map->sides);
+  array_clear(&map->linedefs);
+  array_clear(&map->sidedefs);
   array_clear(&map->sslines);
-  d2k_map_blockmap_clear(&map->blockmap);
+  d2k_blockmap_clear(&map->blockmap);
 }
 
 /* vi: set et ts=2 sw=2: */

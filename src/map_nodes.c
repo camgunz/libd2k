@@ -196,8 +196,8 @@ static bool load_nodes(D2KMapLoader *map_loader, Status *status) {
         node->children[j] = node->children[j] &= ~0x8000;
 
         if (node->children[j] >= map_loader->map->subsectors.len) {
-          return invalid_node_child_index(status);
           /* PrBoom+ sets this to 0 */
+          return invalid_node_child_index(status);
         }
 
         node->children[j] |= D2K_MAP_NODE_FLAGS_SUBSECTOR;

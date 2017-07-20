@@ -225,6 +225,7 @@ SET(LIBD2K_SOURCE_FILES
 SET(INCLUDE_FILES
   ${CMAKE_SOURCE_DIR}/src/d2k.h
   ${CMAKE_SOURCE_DIR}/src/d2k/internal.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/alloc.h
   ${CMAKE_SOURCE_DIR}/src/d2k/angle.h
   ${CMAKE_SOURCE_DIR}/src/d2k/fixed_math.h
   ${CMAKE_SOURCE_DIR}/src/d2k/fixed_vertex.h
@@ -238,6 +239,9 @@ SET(INCLUDE_FILES
   ${CMAKE_SOURCE_DIR}/src/d2k/map_object_type.h
   ${CMAKE_SOURCE_DIR}/src/d2k/map_problem.h
   ${CMAKE_SOURCE_DIR}/src/d2k/map_sectors.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_segs.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_sidedefs.h
+  ${CMAKE_SOURCE_DIR}/src/d2k/map_subsectors.h
   ${CMAKE_SOURCE_DIR}/src/d2k/map_vertexes.h
   ${CMAKE_SOURCE_DIR}/src/d2k/sound_origin.h
   ${CMAKE_SOURCE_DIR}/src/d2k/sprite.h

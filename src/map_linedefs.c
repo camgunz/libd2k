@@ -21,6 +21,13 @@
 /*****************************************************************************/
 
 #include "d2k/internal.h"
+
+#include <math.h>
+
+#include "d2k/fixed_math.h"
+#include "d2k/fixed_vertex.h"
+#include "d2k/map_loader.h"
+#include "d2k/map_linedefs.h"
 #include "d2k/wad.h"
 
 #define LINEDEF_SIZE 14
@@ -37,6 +44,41 @@
   "malformed LINEDEFS lump"                           \
 )
 
+#define invalid_linedef_start_vertex_index(status) status_error( \
+  status,                                                        \
+  "d2k_map_linedefs",                                            \
+  D2K_MAP_LINEDEFS_INVALID_LINEDEF_START_VERTEX_INDEX,           \
+  "invalid linedef start vertex index"                           \
+)
+
+#define invalid_linedef_end_vertex_index(status) status_error( \
+  status,                                                      \
+  "d2k_map_linedefs",                                          \
+  D2K_MAP_LINEDEFS_INVALID_LINEDEF_END_VERTEX_INDEX,           \
+  "invalid linedef end vertex index"                           \
+)
+
+#define invalid_linedef_tagged_sector_index(status) status_error( \
+  status,                                                         \
+  "d2k_map_linedefs",                                             \
+  D2K_MAP_LINEDEFS_INVALID_LINEDEF_TAGGED_SECTOR_INDEX,           \
+  "invalid linedef tagged sector index"                           \
+)
+
+#define invalid_linedef_front_sidedef_index(status) status_error( \
+  status,                                                         \
+  "d2k_map_linedefs",                                             \
+  D2K_MAP_LINEDEFS_INVALID_LINEDEF_FRONT_SIDEDEF_INDEX,           \
+  "invalid linedef front sidedef index"                           \
+)
+
+#define invalid_linedef_back_sidedef_index(status) status_error( \
+  status,                                                        \
+  "d2k_map_linedefs",                                            \
+  D2K_MAP_LINEDEFS_INVALID_LINEDEF_BACK_SIDEDEF_INDEX,           \
+  "invalid linedef back sidedef index"                           \
+)
+
 static inline float get_texel_distance(D2KFixedPoint dx, D2KFixedPoint dy) {
   float fx = d2k_fixed_point_to_float(dx);
   float fy = d2k_fixed_point_to_float(dy);
@@ -51,15 +93,17 @@ bool d2k_map_loader_load_linedefs(D2KMapLoader *map_loader, Status *status) {
     return malformed_linedefs_lump(status);
   }
 
-  if (!array_ensure_capacity(&map->linedefs, linedef_count, status)) {
+  if (!array_ensure_capacity(&map_loader->map->linedefs, linedef_count,
+                                                         status)) {
     return false;
   }
 
   for (size_t i = 0; i < linedef_count; i++) {
-    D2KLinedef *linedef = array_append_fast(&map->linedefs);
+    D2KLinedef *linedef = array_append_fast(&map_loader->map->linedefs);
     char linedef_data[LINEDEF_SIZE];
     size_t start_vertex_index;
     size_t end_vertex_index;
+    size_t tagged_sector_index;
     size_t front_sidedef_index;
     size_t back_sidedef_index;
 
@@ -73,9 +117,9 @@ bool d2k_map_loader_load_linedefs(D2KMapLoader *map_loader, Status *status) {
     end_vertex_index    = LUMP_DATA_SHORT_TO_INDEX(linedef_data, 2);
     linedef->flags      = LUMP_DATA_SHORT_TO_USHORT(linedef_data, 4);
     linedef->special    = LUMP_DATA_SHORT_TO_SHORT(linedef_data, 6);
-    tagged_sector_index = LUMP_DATA_TO_INDEX(linedef_data, 8);
-    front_side_index    = LUMP_DATA_TO_INDEX(linedef_data, 10);
-    back_side_index     = LUMP_DATA_TO_INDEX(linedef_data, 12);
+    tagged_sector_index = LUMP_DATA_SHORT_TO_INDEX(linedef_data, 8);
+    front_sidedef_index = LUMP_DATA_SHORT_TO_INDEX(linedef_data, 10);
+    back_sidedef_index  = LUMP_DATA_SHORT_TO_INDEX(linedef_data, 12);
 
     if (start_vertex_index >= map_loader->map->vertexes.len) {
       return invalid_linedef_start_vertex_index(status);
@@ -89,20 +133,20 @@ bool d2k_map_loader_load_linedefs(D2KMapLoader *map_loader, Status *status) {
       return invalid_linedef_tagged_sector_index(status);
     }
 
-    if (front_side_index >= map_loader->map->sidedefs.len) {
-      return invalid_linedef_front_side_index(status);
+    if (front_sidedef_index >= map_loader->map->sidedefs.len) {
+      return invalid_linedef_front_sidedef_index(status);
     }
 
-    if (back_side_index >= map_loader->map->sidedefs.len) {
-      return invalid_linedef_back_side_index(status);
+    if (back_sidedef_index >= map_loader->map->sidedefs.len) {
+      return invalid_linedef_back_sidedef_index(status);
     }
 
-    linedef->start_vertex = array_index_fast(
+    linedef->v1 = array_index_fast(
       &map_loader->map->vertexes,
       start_vertex_index
     );
 
-    linedef->end_vertex = array_index_fast(
+    linedef->v2 = array_index_fast(
       &map_loader->map->vertexes,
       end_vertex_index
     );
@@ -114,17 +158,17 @@ bool d2k_map_loader_load_linedefs(D2KMapLoader *map_loader, Status *status) {
 
     linedef->front_side = array_index_fast(
       &map_loader->map->sidedefs,
-      front_side_index
+      front_sidedef_index
     );
 
     linedef->back_side = array_index_fast(
       &map_loader->map->sidedefs,
-      back_side_index
+      back_sidedef_index
     );
 
-    linedef->dx = linedef->end_vertex->x - linedef->start_vertex->x
-    linedef->dy = linedef->end_vertex->y - linedef->start_vertex->y
-    linedef->texel_length = get_texel-distance(linedef->dx, linedef->dy);
+    linedef->dx = linedef->v2->x - linedef->v1->x;
+    linedef->dy = linedef->v2->y - linedef->v1->y;
+    linedef->texel_length = get_texel_distance(linedef->dx, linedef->dy);
     linedef->tran_lump = -1;
 
     if (linedef->dx == 0) {
@@ -140,22 +184,22 @@ bool d2k_map_loader_load_linedefs(D2KMapLoader *map_loader, Status *status) {
       linedef->slope = D2K_LINEDEF_SLOPE_TYPE_NEGATIVE;
     }
 
-    if (linedef->start_vertex->x < linedef->end_vertex->x) {
-      linedef->bbox[BOXLEFT] = linedef->start_vertex->x;
-      linedef->bbox[BOXRIGHT] = linedef->end_vertex->x;
+    if (linedef->v1->x < linedef->v2->x) {
+      linedef->bbox[BOXLEFT] = linedef->v1->x;
+      linedef->bbox[BOXRIGHT] = linedef->v2->x;
     }
     else {
-      linedef->bbox[BOXLEFT] = linedef->end_vertex->x;
-      linedef->bbox[BOXRIGHT] = linedef->start_vertex->x;
+      linedef->bbox[BOXLEFT] = linedef->v2->x;
+      linedef->bbox[BOXRIGHT] = linedef->v1->x;
     }
 
-    if (linedef->start_vertex->y < linedef->end_vertex->y) {
-      linedef->bbox[BOXBOTTOM] = linedef->start_vertex->y;
-      linedef->bbox[BOXTOP] = linedef->end_vertex->y;
+    if (linedef->v1->y < linedef->v2->y) {
+      linedef->bbox[BOXBOTTOM] = linedef->v1->y;
+      linedef->bbox[BOXTOP] = linedef->v2->y;
     }
-    else if (linedef->start_vertex->y < linedef->end_vertex->y) {
-      linedef->bbox[BOXBOTTOM] = linedef->end_vertex->y;
-      linedef->bbox[BOXTOP] = linedef->start_vertex->y;
+    else if (linedef->v1->y < linedef->v2->y) {
+      linedef->bbox[BOXBOTTOM] = linedef->v2->y;
+      linedef->bbox[BOXTOP] = linedef->v1->y;
     }
 
     linedef->sound_origin.x = linedef->bbox[BOXLEFT] / 2 +
