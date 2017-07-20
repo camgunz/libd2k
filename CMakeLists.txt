@@ -211,8 +211,8 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src)
 
 SET(LIBD2K_SOURCE_FILES
   ${CMAKE_SOURCE_DIR}/src/angle.c
-  ${CMAKE_SOURCE_DIR}/src/blockmap.c
   ${CMAKE_SOURCE_DIR}/src/map.c
+  ${CMAKE_SOURCE_DIR}/src/map_blockmap.c
   ${CMAKE_SOURCE_DIR}/src/map_linedefs.c
   ${CMAKE_SOURCE_DIR}/src/map_loader.c
   ${CMAKE_SOURCE_DIR}/src/map_nodes.c
