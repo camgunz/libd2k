@@ -28,13 +28,6 @@
 #include "d2k/map_loader.h"
 #include "d2k/wad.h"
 
-#define map_missing_blockmap_lump(status) status_error( \
-  status,                                               \
-  "d2k_map",                                            \
-  D2K_MAP_MISSING_BLOCKMAP_LUMP,                        \
-  "map missing BLOCKMAP lump"                           \
-)
-
 #define negative_blockmap_width(status) status_error( \
   status,                                             \
   "d2k_blockmap",                                     \

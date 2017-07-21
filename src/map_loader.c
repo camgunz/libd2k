@@ -24,7 +24,9 @@
 #include "d2k/map.h"
 #include "d2k/map_blockmap.h"
 #include "d2k/map_linedefs.h"
+#include "d2k/map_loader.h"
 #include "d2k/map_nodes.h"
+#include "d2k/map_sectors.h"
 #include "d2k/map_sidedefs.h"
 #include "d2k/map_vertexes.h"
 #include "d2k/wad.h"
@@ -99,6 +101,13 @@
   "map missing REJECT lump"                           \
 )
 
+#define map_missing_blockmap_lump(status) status_error( \
+  status,                                               \
+  "d2k_map",                                            \
+  D2K_MAP_MISSING_BLOCKMAP_LUMP,                        \
+  "map missing BLOCKMAP lump"                           \
+)
+
 #define map_missing_gl_vert_lump(status) status_error( \
   status,                                              \
   "d2k_map",                                           \
@@ -127,18 +136,18 @@
   "map missing GL_NODES lump"                           \
 )
 
+#define jumbled_lumps(status) status_error( \
+  status,                                   \
+  "d2k_map",                                \
+  D2K_MAP_JUMBLED_LUMPS,                    \
+  "map lumps are jumbled"                   \
+)
+
 #define multiple_nodes_versions(status) status_error( \
   status,                                             \
   "d2k_map",                                          \
   D2K_MAP_MULTIPLE_NODES_VERSIONS,                    \
   "map has multiple nodes versions"                   \
-)
-
-#define truncated_ssectors_lump(status) status_error( \
-  status,                                             \
-  "d2k_map",                                          \
-  D2K_MAP_TRUNCATED_SSECTORS_LUMP,                    \
-  "map has truncated SSECTORS lump"                   \
 )
 
 static bool load_vanilla_lump(D2KMapLoader *map_loader, size_t index,
@@ -153,7 +162,7 @@ static bool load_vanilla_lump(D2KMapLoader *map_loader, size_t index,
 
 static bool load_gl_lump_by_index(D2KMapLoader *map_loader, size_t index,
                                                             Status *status) {
-  return get_gl_lump_by_index(
+  return d2k_map_loader_get_gl_lump(
     map_loader,
     index,
     &map_loader->map_lumps[index],
@@ -161,55 +170,47 @@ static bool load_gl_lump_by_index(D2KMapLoader *map_loader, size_t index,
   );
 }
 
-static bool load_gl_lumps(D2KMapLoader *map_loader, Status *status) {
-  for (size_t i = D2K_MAP_LUMP_GL_MAP; i < D2K_MAP_LUMP_GL_MAX; i++) {
-    if (!load_gl_lump_by_index(map_loader, i, &status)) {
-      return false;
-    }
-  }
-}
-
 static bool load_vanilla_lumps(D2KMapLoader *map_loader, Status *status) {
   size_t i;
 
-  for (i = D2K_MAP_LUMP_VANILLA_MAP + 1; i < D2K_MAP_LUMP_VANILLA_MAX; i++) {
-    if (!map_loader_load_vanilla_lump(map_loader, i, status)) {
+  for (i = D2K_VANILLA_MAP_LUMP_MAP + 1; i < D2K_VANILLA_MAP_LUMP_MAX; i++) {
+    if (!load_vanilla_lump(map_loader, i, status)) {
       switch (i) {
-        case D2K_MAP_LUMP_VANILLA_THINGS:
+        case D2K_VANILLA_MAP_LUMP_THINGS:
           return map_missing_things_lump(status);
-        case D2K_MAP_LUMP_VANILLA_LINEDEFS:
+        case D2K_VANILLA_MAP_LUMP_LINEDEFS:
           return map_missing_linedefs_lump(status);
-        case D2K_MAP_LUMP_VANILLA_SIDEDEFS:
+        case D2K_VANILLA_MAP_LUMP_SIDEDEFS:
           return map_missing_sidedefs_lump(status);
-        case D2K_MAP_LUMP_VANILLA_VERTEXES:
-          if (!map_loader->gl_map_lumps[D2K_MAP_LUMPS_GL_VERT]) {
+        case D2K_VANILLA_MAP_LUMP_VERTEXES:
+          if (!map_loader->gl_map_lumps[D2K_GL_MAP_LUMP_GL_VERT]) {
             return map_missing_vertexes_lump(status);
           }
           break;
-        case D2K_MAP_LUMP_VANILLA_SEGS:
-          if (!map_loader->gl_map_lumps[D2K_MAP_LUMPS_GL_SEGS]) {
+        case D2K_VANILLA_MAP_LUMP_SEGS:
+          if (!map_loader->gl_map_lumps[D2K_GL_MAP_LUMP_GL_SEGS]) {
             return map_missing_segs_lump(status);
           }
           break;
-        case D2K_MAP_LUMP_VANILLA_SSECTORS:
-          if (!map_loader->gl_map_lumps[D2K_MAP_LUMPS_GL_SSECT]) {
+        case D2K_VANILLA_MAP_LUMP_SSECTORS:
+          if (!map_loader->gl_map_lumps[D2K_GL_MAP_LUMP_GL_SSECT]) {
             return map_missing_ssectors_lump(status);
           }
           break;
-        case D2K_MAP_LUMP_VANILLA_NODES:
-          if (!map_loader->gl_map_lumps[D2K_MAP_LUMPS_GL_NODES]) {
+        case D2K_VANILLA_MAP_LUMP_NODES:
+          if (!map_loader->gl_map_lumps[D2K_GL_MAP_LUMP_GL_NODES]) {
             return map_missing_nodes_lump(status);
           }
           break;
-        case D2K_MAP_LUMP_VANILLA_SECTORS:
+        case D2K_VANILLA_MAP_LUMP_SECTORS:
           return map_missing_sectors_lump(status);
-        case D2K_MAP_LUMP_VANILLA_REJECT:
+        case D2K_VANILLA_MAP_LUMP_REJECT:
           return map_missing_reject_lump(status);
-        case D2K_MAP_LUMP_VANILLA_BLOCKMAP:
+        case D2K_VANILLA_MAP_LUMP_BLOCKMAP:
           return map_missing_blockmap_lump(status);
-        case D2K_MAP_LUMP_VANILLA_BEHAVIOR:
+        case D2K_VANILLA_MAP_LUMP_BEHAVIOR:
           break;
-        case D2K_MAP_LUMP_VANILLA_SCRIPTS:
+        case D2K_VANILLA_MAP_LUMP_SCRIPTS:
           break;
         default:
           break;
@@ -224,55 +225,27 @@ static bool load_vanilla_lumps(D2KMapLoader *map_loader, Status *status) {
   return status_ok(status);
 }
 
-bool d2k_map_loader_get_vanilla_lump(D2KMapLoader *map_loader,
-                                     size_t index,
-                                     Lump **lump,
-                                     Status *status) {
-  size_t offset = map_loader->map_lumps[D2K_MAP_LUMP_VANILLA_MAP]->index;
-
-  return d2k_lump_directory_index(
-    map_loader->lump_directory,
-    offset,
-    lump,
-    status
-  );
-}
-
-bool d2k_map_loader_get_gl_lump(D2KMapLoader *map_loader, size_t index,
-                                                          Lump **lump,
-                                                          Status *status) {
-  size_t offset = map_loader->map_lumps[D2K_MAP_LUMP_GL_MAP]->index;
-
-  return d2k_lump_directory_index(
-    map_loader->lump_directory,
-    offset,
-    lump,
-    status
-  );
-}
-
-bool load_udmf_map(D2KMapLoader *map_loader, Status *status) {
-  (void)map_loader;
-  (void)status;
+static bool load_gl_lumps(D2KMapLoader *map_loader, Status *status) {
+  for (size_t i = D2K_GL_MAP_LUMP_MAP; i < D2K_GL_MAP_LUMP_MAX; i++) {
+    if (!load_gl_lump_by_index(map_loader, i, status)) {
+      return false;
+    }
+  }
 
   return status_ok(status);
 }
 
-bool load_binary_map(D2KMapLoader *map_loader, Status *status) {
-  map_loader->map->gl_wad_name[0] = 'G';
-  map_loader->map->gl_wad_name[1] = 'L';
-  map_loader->map->gl_wad_name[2] = '_';
-
-  memcpy(
-    (void *)&map_loader->map->gl_wad_name[3]
-    (void *)&map_loader->map->wad_name[0],
-    sizeof(map_loader->map->wad_name)
+static bool load_binary_map(D2KMapLoader *map_loader, Status *status) {
+  snprintf(
+    map_loader->map->gl_wad_name,
+    sizeof(map_loader->map->gl_wad_name),
+    "GL_%s", map_loader->map->wad_name
   );
 
   if (!d2k_lump_directory_lookup(
-        lump_directory,
+        map_loader->lump_directory,
         map_loader->map->gl_wad_name,
-        &map_loader.gl_map_lumps[D2K_MAP_LUMP_GL_MAP],
+        &map_loader->gl_map_lumps[D2K_GL_MAP_LUMP_MAP],
         status)) {
     if (!status_match(status, "base", ERROR_NOT_FOUND)) {
       return false;
@@ -282,7 +255,7 @@ bool load_binary_map(D2KMapLoader *map_loader, Status *status) {
   }
 
   if (d2k_map_loader_has_gl_lumps(map_loader)) {
-    if (!map_loader_load_gl_lumps(map_loader, status)) {
+    if (!load_gl_lumps(map_loader, status)) {
       return false;
     }
   }
@@ -294,11 +267,18 @@ bool load_binary_map(D2KMapLoader *map_loader, Status *status) {
     d2k_map_loader_load_sectors(map_loader, status)         &&
     d2k_map_loader_load_sidedefs(map_loader, status)        &&
     d2k_map_loader_load_linedefs(map_loader, status)        &&
-    d2k_map_loader_load_sidedefs2(map_loader, status)       &&
-    d2k_map_loader_load_linedefs2(map_loader, status)       &&
+    // d2k_map_loader_load_sidedefs2(map_loader, status)       &&
+    // d2k_map_loader_load_linedefs2(map_loader, status)       &&
     d2k_map_loader_load_blockmap(map_loader, status)        &&
     d2k_map_loader_load_nodes(map_loader, status)
   );
+}
+
+static bool load_udmf_map(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+
+  return status_ok(status);
 }
 
 bool d2k_map_loader_load_map(D2KMapLoader *map_loader,
@@ -308,14 +288,14 @@ bool d2k_map_loader_load_map(D2KMapLoader *map_loader,
                              Status *status) {
   bool first_lump_is_textmap = false;
 
-  map_loader.map = map;
-  map_loader.lump_directory = lump_directory;
-  map_loader.nodes_version = D2K_MAP_NODES_VERSION_VANILLA;
+  map_loader->map = map;
+  map_loader->lump_directory = lump_directory;
+  map_loader->nodes_version = D2K_MAP_NODES_VERSION_VANILLA;
 
   if (!d2k_lump_directory_lookup(
         lump_directory,
         map_name,
-        &map_loader.map_lumps[D2K_MAP_LUMP_VANILLA_MAP],
+        &map_loader->map_lumps[D2K_VANILLA_MAP_LUMP_MAP],
         status)) {
     if (status_match(status, "base", ERROR_NOT_FOUND)) {
       return map_not_found(status);
@@ -328,27 +308,19 @@ bool d2k_map_loader_load_map(D2KMapLoader *map_loader,
   map->wad_name[sizeof(map->wad_name) - 1] = '\0';
 
   if (!d2k_lump_directory_index_check_name(
-        map_loader.lump_directory,
-        map_loader.map_lumps[D2K_MAP_LUMP_VANILLA_MAP]->index + 1,
-        &first_lump_is_textmap,
+        map_loader->lump_directory,
+        map_loader->map_lumps[D2K_VANILLA_MAP_LUMP_MAP]->index + 1,
         "TEXTMAP",
+        &first_lump_is_textmap,
         status)) {
     return false;
   }
 
   if (first_lump_is_textmap) {
-    return load_udmf_map(&map_loader, status);
+    return load_udmf_map(map_loader, status);
   }
 
-  return load_binary_map(&map_loader, status);
-}
-
-bool d2k_map_loader_has_gl_lumps(D2KMapLoader *map_loader) {
-  return map_loader->gl_map_lumps[D2K_MAP_LUMP_GL_MAP] != NULL;
-}
-
-bool d2k_map_loader_has_udmf_lumps(D2KMapLoader *map_loader) {
-  return map_loader->udmf_start_map_lump != NULL;
+  return load_binary_map(map_loader, status);
 }
 
 /* vi: set et ts=2 sw=2: */

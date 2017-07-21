@@ -21,6 +21,8 @@
 /*****************************************************************************/
 
 #include "d2k/internal.h"
+#include "d2k/map.h"
+#include "d2k/map_loader.h"
 #include "d2k/map_nodes.h"
 #include "d2k/wad.h"
 
@@ -83,7 +85,6 @@
   )
 
 #define VANILLA_SEG_SIZE       12
-#define VANILLA_SUBSECTOR_SIZE  4
 #define VANILLA_NODES_SIZE     28
 
 typedef struct D2KMapNodeVersionHeaderInfoStruct {
@@ -103,10 +104,10 @@ d2k_map_node_version_headers[D2K_MAP_NODES_VERSION_MAX] = {
   {D2K_MAP_LUMP_ZNODES,   "XGL2",         4},
   {D2K_MAP_LUMP_ZNODES,   "ZGL2",         4},
   {D2K_MAP_LUMP_NONE,     "",             0},
-  {D2K_MAP_LUMP_GL_VERT   "gNd2",         4},
-  {D2K_MAP_LUMP_GL_SEGS   "gNd3",         4},
-  {D2K_MAP_LUMP_GL_VERT   "gNd4",         4},
-  {D2K_MAP_LUMP_GL_VERT   "gNd5",         4},
+  {D2K_MAP_LUMP_GL_VERT,  "gNd2",         4},
+  {D2K_MAP_LUMP_GL_SEGS,  "gNd3",         4},
+  {D2K_MAP_LUMP_GL_VERT,  "gNd4",         4},
+  {D2K_MAP_LUMP_GL_VERT,  "gNd5",         4},
 };
 
 static inline bool lump_starts_with(D2KLump *lump,
@@ -115,42 +116,6 @@ static inline bool lump_starts_with(D2KLump *lump,
                                     bool *starts_with,
                                     Status *status) {
   return slice_equals_data_at(&lump->data, 0, data, len, starts_with, status);
-}
-
-static bool load_subsectors(D2KMapLoader *map_loader, Status *status) {
-  D2KLump *subsectors_lump = map_loader->map_lumps[D2K_MAP_LUMP_SSECT];
-  size_t subsectors_count = subsectors_lump->data.len / VANILLA_SUBSECTOR_SIZE;
-
-  if ((subsectors_lump->data.len % VANILLA_SUBSECTOR_SIZE) != 0) {
-    return malformed_subsectors_lump(status);
-  }
-
-  if (!array_ensure_capacity(&map_loader->map->subsectors, subsector_count,
-                                                           status)) {
-    return false;
-  }
-
-  for (size_t i = 0; i < subsector_count; i++) {
-    D2KSubsector *subsector = array_append_fast(&map_loader->map->subsectors);
-    char subsector_data[VANILLA_SUBSECTOR_SIZE];
-    size_t seg_count;
-    size_t first_seg;
-
-    slice_read_fast(&subsectors_lump->data, i * VANILLA_SUBSECTOR_SIZE,
-                                            VANILLA_SUBSECTOR_SIZE,
-                                            (void *)subsector_data);
-
-
-    seg_count = LUMP_DATA_SHORT_TO_COUNT(subsector_data, 0);
-    first_seg = LUMP_DATA_SHORT_TO_INDEX(subsector_data, 2);
-
-    if ((first_seg + seg_count) > map_loader->map->segs.len) {
-      return out_of_range_subsector_seg_list(status);
-    }
-
-    subsector->seg_count = seg_count;
-    subsector->first_seg = first_seg;
-  }
 }
 
 static bool load_nodes(D2KMapLoader *map_loader, Status *status) {
