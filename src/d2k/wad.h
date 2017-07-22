@@ -23,6 +23,8 @@
 #ifndef D2K_WAD_H__
 #define D2K_WAD_H__
 
+struct D2KTextureStruct;
+
 enum {
   D2K_WAD_TOO_SMALL = 1,
   D2K_WAD_INVALID_IDENTIFICATION,
@@ -91,6 +93,10 @@ bool d2k_lump_directory_lookup_ns(D2KLumpDirectory *lump_directory,
                                   D2KLumpNamespace ns,
                                   D2KLump **lump,
                                   Status *status);
+bool d2k_lump_directory_lookup_texture(D2KLumpDirectory *lump_directory,
+                                       const char *texture_name,
+                                       struct D2KTextureStruct **texture,
+                                       Status *status);
 
 static inline bool d2k_lump_directory_index(D2KLumpDirectory *lump_directory,
                                             size_t index,

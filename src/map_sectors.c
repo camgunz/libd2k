@@ -21,11 +21,13 @@
 /*****************************************************************************/
 
 #include "d2k/internal.h"
+#include "d2k/map_loader.h"
+#include "d2k/map_sectors.h"
 #include "d2k/wad.h"
 
 #define malformed_sectors_lump(status) status_error( \
   status,                                            \
-  "d2k_map_sectors"                                  \
+  "d2k_map_sectors",                                 \
   D2K_MAP_SECTORS_MALFORMED_LUMP,                    \
   "malformed SECTORS lump"                           \
 )
@@ -66,23 +68,25 @@ bool d2k_map_loader_load_sectors(D2KMapLoader *map_loader, Status *status) {
     sector->special = LUMP_DATA_SHORT_TO_FIXED(sector_data, 22);
     sector->tag = LUMP_DATA_SHORT_TO_FIXED(sector_data, 24);
 
-    if (!d2k_lump_directory_lookup_ns(lump_directory, floor_texture,
-                                                      D2K_LUMP_NAMESPACE_FLATS,
-                                                      &flat_lump,
-                                                      status)) {
+    if (!d2k_lump_directory_lookup_ns(map_loader->lump_directory,
+                                      floor_texture,
+                                      D2K_LUMP_NAMESPACE_FLATS,
+                                      &flat_lump,
+                                      status)) {
       return false;
     }
 
-    sectors->floor_texture = flat_lump->index;
+    sector->floor_texture = flat_lump->index;
 
-    if (!d2k_lump_directory_lookup_ns(lump_directory, ceiling_texture,
-                                                      D2K_LUMP_NAMESPACE_FLATS,
-                                                      &flat_lump,
-                                                      status)) {
+    if (!d2k_lump_directory_lookup_ns(map_loader->lump_directory,
+                                      ceiling_texture,
+                                      D2K_LUMP_NAMESPACE_FLATS,
+                                      &flat_lump,
+                                      status)) {
       return false;
     }
 
-    sectors->ceiling_texture = flat_lump->index;
+    sector->ceiling_texture = flat_lump->index;
   }
 
   return status_ok(status);

@@ -27,6 +27,7 @@
 
 enum {
   D2K_MAP_SIDEDEFS_MALFORMED_LUMP = 1,
+  D2K_MAP_SIDEDEFS_INVALID_SECTOR_INDEX,
 };
 
 typedef struct D2KSidedefStruct {

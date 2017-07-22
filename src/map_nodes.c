@@ -24,6 +24,8 @@
 #include "d2k/map.h"
 #include "d2k/map_loader.h"
 #include "d2k/map_nodes.h"
+#include "d2k/map_segs.h"
+#include "d2k/map_subsectors.h"
 #include "d2k/wad.h"
 
 #define malformed_nodes_lump(status) status_error( \
@@ -33,11 +35,11 @@
   "malformed NODES lump"                           \
 )
 
-#define multiple_nodes_versions(status) status_error( \
-  status,                                             \
-  "d2k_map_nodes",                                    \
-  D2K_MAP_NODES_MULTIPLE_VERSIONS,                    \
-  "multiple nodes versions detected"                  \
+#define multiple_map_node_types_found(status) status_error( \
+  status,                                                   \
+  "d2k_map_nodes",                                          \
+  D2K_MAP_NODES_MULTIPLE_TYPES_FOUND,                       \
+  "multiple nodes types detected"                           \
 )
 
 #define unknown_nodes_version(status) status_error( \
@@ -45,6 +47,20 @@
   "d2k_map_nodes",                                  \
   D2K_MAP_NODES_UNKNOWN_NODES_VERSION,              \
   "unknown nodes version"                           \
+)
+
+#define invalid_child_index(status) status_error( \
+  status,                                         \
+  "d2k_map_nodes",                                \
+  D2K_MAP_NODES_INVALID_CHILD_INDEX,              \
+  "invalid child index"                           \
+)
+
+#define unsupported_map_node_version_info_lump_location(status) status_error( \
+  status,                                                                     \
+  "d2k_map_nodes",                                                            \
+  D2K_MAP_NODES_UNSUPPORTED_MAP_NODE_VERSION_INFO_LUMP_LOCATION,              \
+  "unsupported map node version info lump location"                           \
 )
 
 #define zdoom_extended_compressed_nodes_not_implemented(status) status_error( \
@@ -84,8 +100,7 @@
     "ZDoom extended compressed GL UDMF nodes not implemented"              \
   )
 
-#define VANILLA_SEG_SIZE       12
-#define VANILLA_NODES_SIZE     28
+#define VANILLA_NODE_SIZE 28
 
 typedef struct D2KMapNodeVersionHeaderInfoStruct {
   D2KMapLump         lump;
@@ -122,8 +137,8 @@ static bool load_nodes(D2KMapLoader *map_loader, Status *status) {
   D2KLump *nodes_lump = map_loader->map_lumps[D2K_MAP_LUMP_NODES];
   size_t nodes_count = nodes_lump->data.len / VANILLA_NODE_SIZE;
 
-  if ((nodes_lump->data.len % VANILLA_NODES_SIZE) != 0) {
-    return malformed_subsectors_lump(status);
+  if ((nodes_lump->data.len % VANILLA_NODE_SIZE) != 0) {
+    return malformed_nodes_lump(status);
   }
 
   if (!array_ensure_capacity(&map_loader->map->nodes, nodes_count, status)) {
@@ -131,12 +146,12 @@ static bool load_nodes(D2KMapLoader *map_loader, Status *status) {
   }
 
   for (size_t i = 0; i < nodes_count; i++) {
-    D2KNode *node = array_append_fast(&map_loader->map->nodes);
+    D2KMapNode *node = array_append_fast(&map_loader->map->nodes);
     char node_data[VANILLA_NODE_SIZE];
     uint16_t children[2];
 
     slice_read_fast(&nodes_lump->data, i * VANILLA_NODE_SIZE,
-                                       VANILLA_NODE_SiZE,
+                                       VANILLA_NODE_SIZE,
                                        (void *)node_data);
 
     node->x  = LUMP_DATA_SHORT_TO_FIXED(node_data, 0);
@@ -158,151 +173,58 @@ static bool load_nodes(D2KMapLoader *map_loader, Status *status) {
         node->children[j] = -1;
       }
       else if ((node->children[j] & 0x8000) == 0x8000) {
-        node->children[j] = node->children[j] &= ~0x8000;
+        int new_child_value = node->children[j] &= ~0x8000;
 
-        if (node->children[j] >= map_loader->map->subsectors.len) {
+        node->children[j] = new_child_value;
+
+        if ((size_t)node->children[j] >= map_loader->map->nodes.len) {
           /* PrBoom+ sets this to 0 */
-          return invalid_node_child_index(status);
+          return invalid_child_index(status);
         }
 
         node->children[j] |= D2K_MAP_NODE_FLAGS_SUBSECTOR;
       }
     }
   }
-}
 
-static bool load_segs(D2KMapLoader *map_loader, Status *status) {
-  D2KLump *segs_lump = map_loader->map_lumps[D2K_MAP_LUMP_SEGS];
-  size_t seg_count = segs_lump->data.len / VANILLA_SEG_SIZE;
-
-  if ((segs_lump->data.len % VANILLA_SEG_SIZE) != 0) {
-    return malformed_segs_lump(status);
-  }
-
-  if (!array_ensure_capacity(&map_loader->map->segs, seg_count, status)) {
-    return false;
-  }
-
-  for (size_t i = 0; i < seg_count; i++) {
-    D2KSeg *seg = array_append_fast(&map_loader->map->segs);
-    char seg_data[VANILLA_SEG_SIZE];
-    size_t vertex_start_index;
-    size_t vertex_end_index;
-    D2KAngle angle;
-    size_t linedef_index;
-    int16_t side;      
-    D2KFixedPoint offset;
-    D2KSidedef *other_side = NULL;
-
-    slice_read_fast(&segs_lump->data, i * VANILLA_SEG_SIZE, VANILLA_SEG_SIZE,
-                                                            (void *)seg_data);
-    start_vertex_index = LUMP_DATA_SHORT_TO_INDEX(seg_data,  0);
-    end_vertex_index   = LUMP_DATA_SHORT_TO_INDEX(seg_data,  2);
-    angle              = LUMP_DATA_SHORT_TO_ANGLE(seg_data,  4);
-    linedef_index      = LUMP_DATA_SHORT_TO_INDEX(seg_data,  6);
-    side               = LUMP_DATA_SHORT_TO_SHORT(seg_data,  8);
-    offset             = LUMP_DATA_SHORT_TO_SHORT(seg_data, 10);
-
-#if 0
-    /* This is the code PrBoom+ uses to fix out-of-range vertex indices */
-    if ((start_vertex_index >= map_loader->map->vertexes.len) ||
-        (end_vertex_index >= map_loader->map->vertexes.len)) {
-      if (seg->sidedef == &seg->linedef->front_side) {
-        seg->v1 = seg->linedef->v1;
-        seg->v2 = seg->linedef->v2;
-      }
-      else {
-        seg->v1 = seg->linedef->v2;
-        seg->v2 = seg->linedef->v1;
-      }
-    }
-#endif
-
-    if (start_vertex_index >= map_loader->map->vertexes.len) {
-      return invalid_seg_start_vertex_index(status);
-    }
-
-    if (end_vertex_index >= map_loader->map->vertexes.len) {
-      return invalid_seg_end_vertex_index(status);
-    }
-
-    if (linedef_index >= map_loader->map->linedefs.len) {
-      return invalid_seg_linedef_index(status);
-    }
-
-    if ((side != 0) && (side != 1)) {
-      return invalid_seg_line_side(status);
-    }
-
-    seg->v1 = array_index_fast(&map_loader->map->vertexes, start_vertex_index);
-    seg->v2 = array_index_fast(&map_loader->map->vertexes, end_vertex_index);
-    seg->linedef = array_index_fast(&map_loader->map->linedefs, linedef_index);
-
-    if (side == 0) {
-      seg->sidedef = seg->linedef->front_side;
-      other_sidedef = seg->linedef->back_side;
-    }
-    else if (side == 1) {
-      seg->sidedef = seg->linedef->back_side;
-      other_sidedef = seg->linedef->front_side;
-    }
-
-    seg->offset = offset;
-    seg->angle = angle;
-
-    /* figgi -- there are no minisegs in classic BSP nodes */
-    seg->mini_seg = false;
-
-    if (seg->sidedef) {
-      seg->front_sector = seg->sidedef->sector;
-    }
-    else {
-      seg->front_sector = NULL; /* [TODO] Warn? */
-    }
-
-    if (seg->linedef->flags & D2K_LINEDEF_FLAGS_TWO_SIDED) {
-      if (!other_side) {
-        seg->back_sector = GetSectorAtNullAddress(); /* this is wrong */
-      }
-      else {
-        seg->back_sector = other_sidedef->sector;
-      }
-    }
-    else {
-      seg->back_sector = NULL;
-    }
-
-    /*
-     * Recalculate seg offsets that are sometimes incorrect with certain
-     * nodebuilders. Fixes among others, line 20365 of DV.wad, map 5
-     */
-
-    if (side == 0) {
-      seg->offset = get_offset(seg->v1, seg->linedef->v1);
-    }
-    else {
-      seg->offset = get_offset(seg->v1, seg->linedef->v2);
-    }
-  }
+  return status_ok(status);
 }
 
 static bool load_gl_subsectors(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 static bool load_gl_nodes(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 static bool load_gl_segs(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 static bool load_deep_bsp_subsectors(D2KMapLoader *map_loader,
                                      Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 static bool load_deep_bsp_nodes(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 static bool load_deep_bsp_segs(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 /*
@@ -349,12 +271,21 @@ static bool load_deep_bsp_segs(D2KMapLoader *map_loader, Status *status) {
  */
 
 static bool load_zdoom_subsectors(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 static bool load_zdoom_nodes(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 static bool load_zdoom_segs(D2KMapLoader *map_loader, Status *status) {
+  (void)map_loader;
+  (void)status;
+  return status_ok(status);
 }
 
 bool d2k_map_loader_detect_nodes_version(D2KMapLoader *map_loader,
@@ -365,8 +296,7 @@ bool d2k_map_loader_detect_nodes_version(D2KMapLoader *map_loader,
 
 
   for (size_t i = 0; i < D2K_MAP_NODES_VERSION_MAX; i++) {
-    D2KLump *lump = NULL;
-    D2KMapNodeVersionHeaderInfo &info = &d2k_map_node_version_headers[i];
+    D2KMapNodeVersionHeaderInfo *info = &d2k_map_node_version_headers[i];
 
     if (!info->version_header_size) {
       continue;
@@ -378,7 +308,7 @@ bool d2k_map_loader_detect_nodes_version(D2KMapLoader *map_loader,
         if (!slice_equals_data_at(&map_loader->map_lumps[info->lump]->data,
                                   0,
                                   info->version_header,
-                                  info->version_header_length,
+                                  info->version_header_size,
                                   &node_type_found[i],
                                   status)) {
           return false;
@@ -389,7 +319,7 @@ bool d2k_map_loader_detect_nodes_version(D2KMapLoader *map_loader,
         if (!slice_equals_data_at(&map_loader->gl_map_lumps[info->lump]->data,
                                   0,
                                   info->version_header,
-                                  info->version_header_length,
+                                  info->version_header_size,
                                   &node_type_found[i],
                                   status)) {
           return false;
@@ -438,19 +368,19 @@ bool d2k_map_loader_load_nodes(D2KMapLoader *map_loader, Status *status) {
   switch (map_loader->nodes_version) {
     case D2K_MAP_NODES_VERSION_VANILLA:
       return (
-        load_subsectors(map_loader, status) &&
+        d2k_map_loader_load_subsectors(map_loader, status) &&
         load_nodes(map_loader, status)      &&
-        load_segs(map_loader, status)
+        d2k_map_loader_load_segs(map_loader, status)
       );
     case D2K_MAP_NODES_VERSION_GL_NODES_1:
       return (
-        load_subsectors(map_loader, status) &&
+        d2k_map_loader_load_subsectors(map_loader, status) &&
         load_nodes(map_loader, status)      &&
         load_gl_segs(map_loader, status)
       );
     case D2K_MAP_NODES_VERSION_GL_NODES_2:
       return (
-        load_subsectors(map_loader, status) &&
+        d2k_map_loader_load_subsectors(map_loader, status) &&
         load_nodes(map_loader, status)      &&
         load_gl_segs(map_loader, status)
       );

@@ -23,7 +23,7 @@
 #include "d2k/internal.h"
 #include "d2k/map.h"
 #include "d2k/map_loader.h"
-#include "d2k/map_nodes.h"
+#include "d2k/map_subsectors.h"
 #include "d2k/wad.h"
 
 #define malformed_subsectors_lump(status) status_error( \
@@ -33,11 +33,19 @@
   "malformed SUBSECTORS lump"                           \
 )
 
+#define out_of_range_subsector_seg_list(status) status_error( \
+  status,                                                     \
+  "d2k_map_subsectors",                                       \
+  D2K_MAP_SUBSECTORS_OUT_OF_RANGE_SEG_LIST,                   \
+  "out of range seg list"                                     \
+)
+
 #define VANILLA_SUBSECTOR_SIZE  4
 
 bool d2k_map_loader_load_subsectors(D2KMapLoader *map_loader, Status *status) {
-  D2KLump *subsectors_lump = map_loader->map_lumps[D2K_VANILLA_MAP_LUMP_SSECT];
-  size_t subsectors_count = subsectors_lump->data.len / VANILLA_SUBSECTOR_SIZE;
+  D2KLump *subsectors_lump =
+    map_loader->map_lumps[D2K_VANILLA_MAP_LUMP_SSECTORS];
+  size_t subsector_count = subsectors_lump->data.len / VANILLA_SUBSECTOR_SIZE;
 
   if ((subsectors_lump->data.len % VANILLA_SUBSECTOR_SIZE) != 0) {
     return malformed_subsectors_lump(status);
@@ -69,6 +77,8 @@ bool d2k_map_loader_load_subsectors(D2KMapLoader *map_loader, Status *status) {
     subsector->seg_count = seg_count;
     subsector->first_seg = first_seg;
   }
+
+  return status_ok(status);
 }
 
 /* vi: set et ts=2 sw=2: */

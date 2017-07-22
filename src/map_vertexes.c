@@ -21,7 +21,10 @@
 /*****************************************************************************/
 
 #include "d2k/internal.h"
+#include "d2k/fixed_vertex.h"
 #include "d2k/map.h"
+#include "d2k/map_loader.h"
+#include "d2k/map_vertexes.h"
 #include "d2k/wad.h"
 
 #define malformed_vertexes_lump(status) status_error( \
@@ -50,15 +53,14 @@ bool d2k_map_loader_load_vertexes(D2KMapLoader *map_loader, Status *status) {
     return malformed_vertexes_lump(status);
   }
 
-  if (!array_ensure_capacity(&map->vertexes, vertex_count, status)) {
+  if (!array_ensure_capacity(&map_loader->map->vertexes, vertex_count,
+                                                         status)) {
     return false;
   }
 
   for (size_t i = 0; i < vertex_count; i++) {
-    D2KFixedVertex *v = array_append_fast(&map->vertexes);
+    D2KFixedVertex *v = array_append_fast(&map_loader->map->vertexes);
     char vertex_data[VANILLA_VERTEX_SIZE];
-    int16_t x;
-    int16_t y;
 
     slice_read_fast(&vertexes_lump->data, i * VANILLA_VERTEX_SIZE,
                                           VANILLA_VERTEX_SIZE,
@@ -83,14 +85,14 @@ bool d2k_map_loader_load_vertexes(D2KMapLoader *map_loader, Status *status) {
         return malformed_gl_vert_lump(status);
       }
 
-      if (!array_ensure_capacity(&map->vertexes,
-                                 map->vertexes.len + vertex_count,
+      if (!array_ensure_capacity(&map_loader->map->vertexes,
+                                 map_loader->map->vertexes.len + vertex_count,
                                  status)) {
         return false;
       }
 
       for (size_t i = 0; i < vertex_count; i++) {
-        D2KFixedVertex *v = array_append_fast(&map->vertexes);
+        D2KFixedVertex *v = array_append_fast(&map_loader->map->vertexes);
         char vertex_data[GL_VERT_VERTEX_SIZE];
 
         slice_read_fast(&gl_vert_lump->data, i * GL_VERT_VERTEX_SIZE,

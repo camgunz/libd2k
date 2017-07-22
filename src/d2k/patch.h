@@ -20,24 +20,14 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#ifndef D2K_MAP_SUBSECTORS_H__
-#define D2K_MAP_SUBSECTORS_H__
+#ifndef D2K_PATCH_H__
+#define D2K_PATCH_H__
 
-#include "d2k/fixed_math.h"
-
-enum {
-  D2K_MAP_SUBSECTORS_MALFORMED_LUMP = 1,
-  D2K_MAP_SUBSECTORS_OUT_OF_RANGE_SEG_LIST,
-};
-
-typedef struct D2KSubsectorStruct {
-  struct D2KSectorStruct *sector;
-  size_t                  seg_count;
-  size_t                  first_seg;
-} D2KSubsector;
-
-bool d2k_map_loader_load_subsectors(struct D2KMapLoaderStruct *map_loader,
-                                    Status *status);
+typedef struct D2KPatchStruct {
+  int origin_x;
+  int origin_y;
+  int patch;
+} D2KPatch;
 
 #endif
 

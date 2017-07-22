@@ -150,6 +150,35 @@
   "map has multiple nodes versions"                   \
 )
 
+const char *d2k_map_lump_vanilla_names[D2K_VANILLA_MAP_LUMP_MAX] = {
+  "",
+  "THINGS",
+  "LINEDEFS",
+  "SIDEDEFS",
+  "VERTEXES",
+  "SEGS",
+  "SSECTORS",
+  "NODES",
+  "SECTORS",
+  "REJECT",
+  "BLOCKMAP",
+  "BEHAVIOR",
+  "SCRIPTS",
+};
+
+const char *d2k_map_lump_gl_names[D2K_GL_MAP_LUMP_MAX] = {
+  "",
+  "GL_VERT",
+  "GL_SEGS",
+  "GL_SSECT",
+  "GL_NODES",
+  "GL_PVS",
+};
+
+const char *d2k_map_lump_udmf_names[D2K_UDMF_MAP_LUMP_MAX] = {
+  "TEXTMAP",
+};
+
 static bool load_vanilla_lump(D2KMapLoader *map_loader, size_t index,
                                                         Status *status) {
   return d2k_map_loader_get_vanilla_lump(

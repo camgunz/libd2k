@@ -7,14 +7,15 @@
 
 #define FREEDOOM2_WAD_PATH "/home/charlie/wads/freedoom2.wad"
 
-void test_map(void **state) {
+void test_basic(void **state) {
   Status status;
   Path path;
   D2KWad freedoom2;
   PArray wads;
   D2KLumpDirectory lump_directory;
   D2KMap map;
-  char map_name[6];
+
+  (void)state;
 
   status_init(&status);
   parray_init(&wads);
@@ -29,7 +30,7 @@ void test_map(void **state) {
     &freedoom2,
     D2K_WAD_SOURCE_IWAD,
     &path,
-    &status,
+    &status
   ));
 
   assert_true(parray_append(&wads, (void *)&freedoom2, &status));
@@ -49,7 +50,7 @@ void test_map(void **state) {
       &map,
       &lump_directory,
       map_name,
-      status
+      &status
     ));
 
     d2k_map_clear(&map);

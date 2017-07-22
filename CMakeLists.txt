@@ -217,6 +217,7 @@ SET(LIBD2K_SOURCE_FILES
   ${CMAKE_SOURCE_DIR}/src/map_loader.c
   ${CMAKE_SOURCE_DIR}/src/map_nodes.c
   ${CMAKE_SOURCE_DIR}/src/map_sectors.c
+  ${CMAKE_SOURCE_DIR}/src/map_segs.c
   ${CMAKE_SOURCE_DIR}/src/map_sidedefs.c
   ${CMAKE_SOURCE_DIR}/src/map_subsectors.c
   ${CMAKE_SOURCE_DIR}/src/map_vertexes.c
@@ -255,6 +256,7 @@ SET(LIBD2K_LIBRARIES
   ${MPDECIMAL_LIBRARIES}
   ${ICONV_LIBRARIES}
   ${CBASE_LIBRARIES}
+  m
 )
 
 SET(D2KTEST_LIBRARIES ${LIBD2K_LIBRARIES}

@@ -28,6 +28,7 @@
 #include "d2k/map_object_info.h"
 #include "d2k/map_object_state.h"
 #include "d2k/map_object_type.h"
+#include "d2k/map_things.h"
 
 struct D2KPlayer;
 
@@ -74,7 +75,7 @@ typedef struct D2KMapObjectStruct {
     struct D2KMapObjectStruct     *tracer;
     struct D2KMapObjectStruct     *lastenemy;
     int                            friction;
-    int                            move_factor
+    int                            move_factor;
     struct D2KMapSectorNodeStruct *touching_sectorlist;
     D2KFixedPoint                  prev_x;
     D2KFixedPoint                  prev_y;

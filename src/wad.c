@@ -265,8 +265,8 @@ static bool load_wad_lumps(D2KWad *wad, Status *status) {
     lump->name[8] = '\0';
 
     // IWAD file used as resource PWAD must not override TEXTURE1 or PNAMES
-    if ((wad->source != WAD_SOURCE_IWAD) &&
-        ((wad->source == WAD_SOURCE_LUMP) ||
+    if ((wad->source != D2K_WAD_SOURCE_IWAD) &&
+        ((wad->source == D2K_WAD_SOURCE_LUMP) ||
          (!memcmp(wad->data.data, "IWAD", 4))) &&
         ((!strnicmp(lump->name, "TEXTURE1", 8)) ||
          (!strnicmp(lump->name, "PNAMES", 6)))) {
@@ -511,4 +511,15 @@ bool d2k_lump_directory_lookup_ns(D2KLumpDirectory *lump_directory,
                                                    status);
 }
 
+bool d2k_lump_directory_lookup_texture(D2KLumpDirectory *lump_directory,
+                                       const char *texture_name,
+                                       struct D2KTextureStruct **texture,
+                                       Status *status) {
+  (void)lump_directory;
+  (void)texture_name;
+  (void)texture;
+  (void)status;
+
+  return status_ok(status);
+}
 /* vi: set et ts=2 sw=2: */

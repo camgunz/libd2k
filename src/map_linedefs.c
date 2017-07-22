@@ -30,13 +30,6 @@
 #include "d2k/map_linedefs.h"
 #include "d2k/wad.h"
 
-#define LINEDEF_SIZE 14
-
-#define BOXTOP    0
-#define BOXBOTTOM 1
-#define BOXLEFT   2
-#define BOXRIGHT  3
-
 #define malformed_linedefs_lump(status) status_error( \
   status,                                             \
   "d2k_map_linedefs",                                 \
@@ -78,6 +71,13 @@
   D2K_MAP_LINEDEFS_INVALID_LINEDEF_BACK_SIDEDEF_INDEX,           \
   "invalid linedef back sidedef index"                           \
 )
+
+#define LINEDEF_SIZE 14
+
+#define BOXTOP    0
+#define BOXBOTTOM 1
+#define BOXLEFT   2
+#define BOXRIGHT  3
 
 static inline float get_texel_distance(D2KFixedPoint dx, D2KFixedPoint dy) {
   float fx = d2k_fixed_point_to_float(dx);

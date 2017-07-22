@@ -38,13 +38,13 @@ struct D2KFixedVertexStruct;
 struct D2KLumpDirectoryStruct;
 
 #define LUMP_DATA_INT_TO_FIXED(data, i) \
-    d2k_int_to_fixed(cble32((data[(i)    ] << 24) | \
-                            (data[(i) + 1] << 16) | \
-                            (data[(i) + 2] <<  8) | \
-                            (data[(i) + 3])))
+    d2k_int_to_fixed_point(cble32((data[(i)    ] << 24) | \
+                                  (data[(i) + 1] << 16) | \
+                                  (data[(i) + 2] <<  8) | \
+                                  (data[(i) + 3])))
 
 #define LUMP_DATA_SHORT_TO_FIXED(data, i) \
-    d2k_int_to_fixed(cble16((data[(i)] << 8) | (data[(i) + 1])))
+    d2k_int_to_fixed_point(cble16((data[(i)] << 8) | (data[(i) + 1])))
 
 #define LUMP_DATA_SHORT_TO_ANGLE(data, i) \
     (D2KAngle)((cble16((data[(i)] << 8) | (data[(i) + 1]))) << 16)
@@ -85,22 +85,6 @@ typedef enum {
   D2K_VANILLA_MAP_LUMP_MAX,
 } D2KVanillaMapLump;
 
-const char *d2k_map_lump_vanilla_names[D2K_VANILLA_MAP_LUMP_MAX] = {
-  "",
-  "THINGS",
-  "LINEDEFS",
-  "SIDEDEFS",
-  "VERTEXES",
-  "SEGS",
-  "SSECTORS",
-  "NODES",
-  "SECTORS",
-  "REJECT",
-  "BLOCKMAP",
-  "BEHAVIOR",
-  "SCRIPTS",
-};
-
 typedef enum {
   D2K_GL_MAP_LUMP_MAP,
   D2K_GL_MAP_LUMP_GL_VERT,
@@ -111,23 +95,10 @@ typedef enum {
   D2K_GL_MAP_LUMP_MAX,
 } D2KGLMapLump;
 
-const char *d2k_map_lump_gl_names[D2K_GL_MAP_LUMP_MAX] = {
-  "",
-  "GL_VERT",
-  "GL_SEGS",
-  "GL_SSECT",
-  "GL_NODES",
-  "GL_PVS",
-};
-
 typedef enum {
   D2K_UDMF_MAP_LUMP_TEXTMAP = 1,
   D2K_UDMF_MAP_LUMP_MAX,
 } D2KUDMFMapLump;
-
-const char *d2k_map_lump_udmf_names[D2K_UDMF_MAP_LUMP_MAX] = {
-  "TEXTMAP",
-};
 
 typedef enum {
   D2K_MAP_LUMP_NONE,
